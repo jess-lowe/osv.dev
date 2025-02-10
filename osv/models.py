@@ -259,6 +259,8 @@ class Bug(ndb.Model):
   aliases: list[str] = ndb.StringProperty(repeated=True)
   # Related IDs.
   related: list[str] = ndb.StringProperty(repeated=True)
+  # Upstream IDs.
+  upstream: list[str] = ndb.StringProperty(repeated=True)
   # Status of the bug.
   status: int = ndb.IntegerProperty()
   # Timestamp when Bug was allocated.
@@ -539,6 +541,7 @@ class Bug(ndb.Model):
 
     self.aliases = list(vulnerability.aliases)
     self.related = list(vulnerability.related)
+    self.upstream = list(vulnerability.upstream)
 
     self.affected_packages = []
     for affected_package in vulnerability.affected:
@@ -626,7 +629,7 @@ class Bug(ndb.Model):
 
     return vulnerability_pb2.Vulnerability(id=self.id(), modified=modified)
 
-  def to_vulnerability(self, include_source=False, include_alias=True):
+  def to_vulnerability(self, include_source=False, include_alias=True, include_upstream=True):
     """Convert to Vulnerability proto."""
     affected = []
 
@@ -738,6 +741,14 @@ class Bug(ndb.Model):
         modified.FromDatetime(
             max(self.last_modified, alias_group.last_modified))
 
+    upstream = self.upstream
+
+    if include_upstream:
+      upstream_Bugs = Bug.query(
+          Bug.upstream == self.db_id, projection=[Bug.db_id]).fetch()
+      upstream_bug_ids = [bug.db_id for bug in upstream_Bugs]
+      upstream = sorted(list(set(upstream_bug_ids + self.upstream)))
+
     result = vulnerability_pb2.Vulnerability(
         schema_version=SCHEMA_VERSION,
         id=self.id(),
@@ -745,6 +756,7 @@ class Bug(ndb.Model):
         modified=modified,  # Note the two places above where this can be set.
         aliases=aliases,
         related=related,
+        upstream=upstream,
         withdrawn=withdrawn,
         summary=self.summary,
         details=details,
@@ -762,7 +774,7 @@ class Bug(ndb.Model):
   def to_vulnerability_async(self, include_source=False):
     """Converts to Vulnerability proto and retrieves aliases asynchronously."""
     vulnerability = self.to_vulnerability(
-        include_source=include_source, include_alias=False)
+        include_source=include_source, include_alias=False, include_upstream=False)
     alias_group = yield get_aliases_async(vulnerability.id)
     if alias_group:
       alias_ids = sorted(list(set(alias_group.bug_ids) - {vulnerability.id}))
@@ -771,8 +783,11 @@ class Bug(ndb.Model):
       modified_time = max(alias_group.last_modified, modified_time)
       vulnerability.modified.FromDatetime(modified_time)
     related_bug_ids = yield get_related_async(vulnerability.id)
+    upstream_bug_ids = yield get_upstream_async(vulnerability.id)
     vulnerability.related[:] = sorted(
         list(set(related_bug_ids + list(vulnerability.related))))
+    vulnerability.upstream[:] = sorted(
+        list(set(upstream_bug_ids + list(vulnerability.upstream))))
     return vulnerability
 
 
@@ -992,3 +1007,11 @@ def get_related_async(bug_id: str) -> ndb.Future:
       Bug.related == bug_id, projection=[Bug.db_id]).fetch_async()
   related_bug_ids = [bug.db_id for bug in related_bugs]
   return related_bug_ids
+
+@ndb.tasklet
+def get_upstream_async(bug_id: str) -> ndb.Future:
+  """Gets upstream bugs asynchronously."""
+  upstream_Bugs = yield Bug.query(
+      Bug.upstream == bug_id, projection=[Bug.db_id]).fetch_async()
+  upstream_bug_ids = [bug.db_id for bug in upstream_Bugs]
+  return upstream_bug_ids
