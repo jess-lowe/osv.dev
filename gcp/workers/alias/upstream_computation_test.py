@@ -17,7 +17,6 @@ import os
 import unittest
 import logging
 from google.cloud import ndb
-from google.protobuf import timestamp_pb2
 
 import osv
 import upstream_computation
@@ -31,7 +30,7 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
   """Upstream tests."""
 
   def setUp(self):
-    self.maxDiff = None
+    self.maxDiff = None  # pylint: disable=invalid-name
     tests.reset_emulator()
     osv.Bug(
         id='CVE-1',

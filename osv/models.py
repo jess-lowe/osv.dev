@@ -748,7 +748,7 @@ class Bug(ndb.Model):
 
     if include_upstream:
       upstream_group = UpstreamGroup.query(
-        UpstreamGroup.db_id == self.db_id).get()
+          UpstreamGroup.db_id == self.db_id).get()
       if upstream_group:
         upstream = sorted(list(set(upstream_group.upstream_ids)))
         modified = timestamp_pb2.Timestamp()
@@ -1031,6 +1031,6 @@ def get_related_async(bug_id: str) -> ndb.Future:
 @ndb.tasklet
 def get_upstream_async(bug_id: str) -> ndb.Future:
   """Gets upstream bugs asynchronously."""
-  upstream_group = yield UpstreamGroup.query(UpstreamGroup.db_id == bug_id).get_async()
+  upstream_group = yield UpstreamGroup.query(
+      UpstreamGroup.db_id == bug_id).get_async()
   return upstream_group
-  

@@ -140,6 +140,7 @@ def _create_group(bug_id, upstream_ids):
   new_group.last_modified = datetime.datetime.now()
   new_group.put()
 
+
 def _update_group(upstream_group, upstream_ids: list):
   """Updates the alias group in the datastore."""
   if len(upstream_ids) < 1:
@@ -162,12 +163,11 @@ def main():
   # Query for all bugs that have upstreams.
   # Use (> '' OR < '') instead of (!= '') / (> '') to de-duplicate results
   # and avoid datastore emulator problems, see issue #2093
-  bugs = osv.Bug.query(
-      ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
+  bugs = osv.Bug.query(ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
 
   all_upstream_group = osv.UpstreamGroup.query()
 
-  # for every bug, check if it has an UpstreamGroup. 
+  # for every bug, check if it has an UpstreamGroup.
   for bug in bugs:
     # check if the db key is also a db_id in all_upstream_group
     b = all_upstream_group.filter(osv.UpstreamGroup.db_id == bug.db_id)
@@ -179,7 +179,6 @@ def main():
       # Create a new UpstreamGroup
       upstream_ids = _compute_upstream(bug.db_id, bugs)
       _create_group(bug, upstream_ids)
-
 
 
 if __name__ == '__main__':
