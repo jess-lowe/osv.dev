@@ -84,7 +84,7 @@ def _get_downstreams_of_bug_query(bug_id):
   downstreams = {}
   for bug in osv.Bug.query(osv.Bug.upstream == bug_id):
     downstreams[bug.db_id] = bug.upstream
-  return sorted(downstreams)
+  return downstreams
 
 
 def _get_downstreams_of_bug(bug_id, bugs):
