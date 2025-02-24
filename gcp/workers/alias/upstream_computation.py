@@ -16,7 +16,7 @@
 
 import datetime
 from google.cloud import ndb
-
+from collections import OrderedDict
 import osv
 import osv.logs
 
@@ -112,6 +112,10 @@ def compute_downstream_hierarchy(target_bug_id: str) -> dict[str, set[str]]:
 
   downstream_map: dict[str, set[str]] = {}
   all_downstreams = _get_downstreams_of_bug_query(target_bug_id)
+  # Sort downstreams by number of upstreams
+  all_downstreams = OrderedDict(
+    sorted(all_downstreams.items(), key=lambda item:len(item[1])))
+
   leaf_bugs: set[str] = set()
 
   for bug_id, _ in all_downstreams.items():
@@ -131,6 +135,44 @@ def compute_downstream_hierarchy(target_bug_id: str) -> dict[str, set[str]]:
   downstream_map[target_bug_id] = root_leaves
   return downstream_map
 
+def compute_downstream_hierarchy_2(target_bug_id: str) -> dict[str, set[str]]:
+  """Computes all downstream vulnerabilities for the given bug ID.
+
+  Returns a dictionary representing the downstream hierarchy.  Keys are bug IDs,
+  and values are sets of their immediate downstream bug IDs. The root bug ID's
+  value will be the set of all leaf nodes in its downstream hierarchy.
+
+  Args:
+    target_bug_id: The ID of the bug to compute the downstream hierarchy for.
+
+  Returns:
+    A dictionary representing the downstream hierarchy.
+  """
+
+  downstream_map: dict[str, set[str]] = {}
+  all_downstreams = _get_downstreams_of_bug_query(target_bug_id)
+  # Sort downstreams by number of upstreams
+  all_downstreams = OrderedDict(
+    sorted(all_downstreams.items(), key=lambda item:-len(item[1])))
+
+  leaf_bugs: set[str] = set()
+  visited: set[str] = set()
+
+  for bug_id, _ in all_downstreams.items():
+    if bug_id in visited:
+      continue
+    immediate_downstreams = _get_downstreams_of_bug(bug_id, all_downstreams)
+    
+
+  root_leaves = leaf_bugs.copy()
+  for bug_id, downstream_bugs in downstream_map.items():
+    for leaf in leaf_bugs:
+      if leaf in downstream_bugs:
+        root_leaves.discard(leaf)
+    root_leaves.add(bug_id)
+
+  downstream_map[target_bug_id] = root_leaves
+  return downstream_map
 
 def _create_group(bug_id, upstream_ids):
   """Creates a new upstream group in the datastore."""
@@ -173,11 +215,11 @@ def main():
     b = all_upstream_group.filter(osv.UpstreamGroup.db_id == bug.db_id)
     if b:
       #recompute the transitive upstreams and compare with the existing group
-      upstream_ids = _compute_upstream(bug.db_id, bugs)
+      upstream_ids = _compute_upstream(bug.db_id, all_upstream_group)
       _update_group(b, upstream_ids)
     else:
       # Create a new UpstreamGroup
-      upstream_ids = _compute_upstream(bug.db_id, bugs)
+      upstream_ids = _compute_upstream(bug.db_id, all_upstream_group)
       _create_group(bug, upstream_ids)
 
 

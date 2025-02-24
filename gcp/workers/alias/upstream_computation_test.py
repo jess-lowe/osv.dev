@@ -335,6 +335,17 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
     }
     self.assertEqual(expected, bug_ids)
 
+  def test_upstream_group_basic(self):
+    """Test the upstream group get by db_id"""
+    upstream_computation.main()
+    osv.UpstreamGroup(
+      db_id = 'CVE-3',
+      upstream_ids=['CVE-1','CVE-2'],
+      last_modified=datetime.datetime(2024,1,1),
+    ).put()
+    bug_ids = osv.UpstreamGroup.query(
+        osv.UpstreamGroup.db_id == 'CVE-3').get().upstream_ids
+    self.assertEqual(['CVE-1', 'CVE-2'], bug_ids)
 
 if __name__ == '__main__':
   ds_emulator = tests.start_datastore_emulator()
