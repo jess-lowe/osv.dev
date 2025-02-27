@@ -777,12 +777,15 @@ class Bug(ndb.Model):
     return result
 
   @ndb.tasklet
-  def to_vulnerability_async(self, include_source=False):
+  def to_vulnerability_async(self,
+                             include_source=False,
+                             include_alias=False,
+                             include_upstream=False):
     """Converts to Vulnerability proto and retrieves aliases asynchronously."""
     vulnerability = self.to_vulnerability(
         include_source=include_source,
-        include_alias=False,
-        include_upstream=False)
+        include_alias=include_alias,
+        include_upstream=include_upstream)
     alias_group = yield get_aliases_async(vulnerability.id)
     if alias_group:
       alias_ids = sorted(list(set(alias_group.bug_ids) - {vulnerability.id}))
@@ -795,8 +798,7 @@ class Bug(ndb.Model):
         list(set(related_bug_ids + list(vulnerability.related))))
     upstream_group = yield get_upstream_async(vulnerability.id)
     if upstream_group:
-      upstream_ids = sorted(list(set(upstream_group.upstream_ids)))
-      vulnerability.upstream[:] = upstream_ids
+      vulnerability.upstream = upstream_group.upstream_ids
       modified_time = vulnerability.modified.ToDatetime()
       modified_time = max(upstream_group.last_modified, modified_time)
       vulnerability.modified.FromDatetime(modified_time)
@@ -933,9 +935,12 @@ class AliasDenyListEntry(ndb.Model):
 
 
 class UpstreamGroup(ndb.Model):
-  """Upstream group."""
+  """Upstream group for storing transitive upstreams of a Bug"""
+  # Database ID of the corresponding Bug
   db_id: str = ndb.StringProperty()
+  # List of transitive upstreams
   upstream_ids: list[str] = ndb.StringProperty(repeated=True)
+  # Date when group was last modified
   last_modified: datetime = ndb.DateTimeProperty()
 
 
@@ -1031,6 +1036,4 @@ def get_related_async(bug_id: str) -> ndb.Future:
 @ndb.tasklet
 def get_upstream_async(bug_id: str) -> ndb.Future:
   """Gets upstream bugs asynchronously."""
-  upstream_group = yield UpstreamGroup.query(
-      UpstreamGroup.db_id == bug_id).get_async()
-  return upstream_group
+  return UpstreamGroup.query(UpstreamGroup.db_id == bug_id).get_async()

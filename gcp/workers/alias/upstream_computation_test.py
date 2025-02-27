@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Alias computation tests."""
+"""Upstream computation tests."""
 import datetime
 import os
 import unittest
@@ -296,56 +296,205 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
         import_last_modified=datetime.datetime(2023, 8, 14),
     ).put()
 
-  def test_compute_upstream(self):
-    """Tests basic case."""
+    osv.Bug(
+      id='UBUNTU-CVE-2024-40967',
+      db_id='UBUNTU-CVE-2024-40967',
+      status=1,
+      upstream=['CVE-2024-40967'],
+      source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+
+    osv.Bug(
+      id='UBUNTU-CVE-2024-53103',
+      db_id='UBUNTU-CVE-2024-53103',
+      status=1,
+      upstream=['CVE-2024-53103'],
+      source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+
+    osv.Bug(
+      id='UBUNTU-CVE-2024-53141',
+      db_id='UBUNTU-CVE-2024-53141',
+      status=1,
+      upstream=['CVE-2024-53141'],
+      source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+
+  def test_compute_upstream_basic(self):
+    """Tests basic case.
+    CVE-1-> CVE-2 -> CVE-3
+    Upstream of CVE-3 is CVE-2 & CVE-1
+    """
+
     bugs_query = osv.Bug.query(
         ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
 
-    bugs = {}
-    for bug in bugs_query:
-      bugs[bug.db_id] = bug.upstream
-    bug_ids = upstream_computation._compute_upstream_hierarchy('CVE-3', bugs)
+    bugs = {bug.db_id: bug for bug in bugs_query.iter()}
+    bug_ids = upstream_computation.compute_upstream(bugs.get('CVE-3'), bugs)
+    self.assertEqual(['CVE-1', 'CVE-2'], bug_ids)
+
+  def test_compute_upstream_example(self):
+    """Test real world case with multiple levels"""
+
+    bugs_query = osv.Bug.query(
+        ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
+
+    bugs = {bug.db_id: bug for bug in bugs_query.iter()}
+    bug_ids = upstream_computation.compute_upstream(
+        bugs.get('USN-7234-3'), bugs)
+    self.assertEqual([
+        "CVE-2023-21400", "CVE-2024-40967", "CVE-2024-53103", "CVE-2024-53141",
+        "CVE-2024-53164", "UBUNTU-CVE-2023-21400", "UBUNTU-CVE-2024-40967",
+        "UBUNTU-CVE-2024-53103", "UBUNTU-CVE-2024-53141",
+        "UBUNTU-CVE-2024-53164"
+    ], bug_ids)
+
+  def test_incomplete_compute_upstream(self):
+    """ Test when incomplete upstream information is given 
+         VULN-1 -> VULN-2, VULN-3 -> VULN-4
+    """
+    osv.Bug(
+        id='VULN-1',
+        db_id='VULN-1',
+        status=1,
+        upstream=[],
+        source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+    osv.Bug(
+        id='VULN-2',
+        db_id='VULN-2',
+        status=1,
+        upstream=['VULN-1'],
+        source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+    osv.Bug(
+        id='VULN-3',
+        db_id='VULN-3',
+        status=1,
+        upstream=['VULN-1'],
+        source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+    osv.Bug(
+        id='VULN-4',
+        db_id='VULN-4',
+        status=1,
+        upstream=['VULN-3'],
+        source='test',
+        public=True,
+        import_last_modified=datetime.datetime(2023, 8, 14),
+    ).put()
+    bugs_query = osv.Bug.query(
+        ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
+    bugs = {bug.db_id: bug for bug in bugs_query.iter()}
+    bug_ids = upstream_computation.compute_upstream(bugs.get('VULN-4'), bugs)
+    self.assertEqual(['VULN-1', 'VULN-3'], bug_ids)
+
+  def test_compute_upstream_hierarchy(self):
+    """Tests basic case.
+    CVE-1-> CVE-2 -> CVE-3
+    Upstream of CVE-3 is CVE-2 & CVE-1
+    """
+    osv.UpstreamGroup(
+        id='CVE-3',
+        db_id='CVE-3',
+        upstream_ids=['CVE-1', 'CVE-2'],
+        last_modified=datetime.datetime(2024, 1, 1),
+    ).put()
+    osv.UpstreamGroup(
+        id='CVE-2',
+        db_id='CVE-2',
+        upstream_ids=['CVE-1'],
+        last_modified=datetime.datetime(2024, 1, 1),
+    ).put()
+    # bugs_query = osv.Bug.query(
+    #     ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
+
+    # bugs = {bug.db_id: bug for bug in bugs_query.iter()}
+
+    bug_ids = upstream_computation.get_upstreams_of_vulnerability('CVE-3')
     self.assertEqual({'CVE-3': {'CVE-2'}, 'CVE-2': {'CVE-1'}}, bug_ids)
 
-  def test_compute_downstream(self):
-    """Tests downstream case."""
+  def test_compute_complex_upstream_hierarchy(self):
+    upstream_computation.main()
+    print([group.db_id for group in osv.UpstreamGroup.query().iter()])
+    bug_ids = upstream_computation.get_upstreams_of_vulnerability('USN-7234-3')
 
-    bugs = upstream_computation._get_downstreams_of_bug_query('CVE-1')
-    bug_ids = list(bugs.keys())
-    self.assertEqual(['CVE-2', 'CVE-3'], bug_ids)
+    self.assertEqual(['CVE-1', 'CVE-2'], bug_ids)
 
-  def test_compute_downstream_hierarchy(self):
-    """Tests downstream case."""
-    bug_ids = upstream_computation.compute_downstream_hierarchy('CVE-1')
-    self.assertEqual({'CVE-1': {'CVE-2'}, 'CVE-2': {'CVE-3'}}, bug_ids)
+#   def test_compute_downstream(self):
+#     """Tests downstream case."""
 
-  def test_compute_downstream_hierarchy_2(self):
-    """Tests downstream hierarchy case."""
+#     bugs = upstream_computation._get_downstreams_of_bug_query('CVE-1')
+#     bug_ids = list(bugs.keys())
+#     self.assertEqual(['CVE-2', 'CVE-3'], bug_ids)
 
-    bug_ids = upstream_computation.compute_downstream_hierarchy(
-        'CVE-2023-21400')
-    expected = {
-        'CVE-2023-21400': {
-            'DLA-3623-1', 'SUSE-SU-2023:3313-1', 'UBUNTU-CVE-2023-21400'
-        },
-        'UBUNTU-CVE-2023-21400': {
-            'USN-6315-1', 'USN-6325-1', 'USN-6330-1', 'USN-6332-1',
-            'USN-6348-1', 'USN-7234-1', 'USN-7234-2', 'USN-7234-3'
-        }
-    }
-    self.assertEqual(expected, bug_ids)
+#   def test_compute_downstream_hierarchy(self):
+#     """Tests downstream case."""
+#     bug_ids = upstream_computation.compute_downstream_hierarchy('CVE-1')
+#     self.assertEqual({'CVE-1': {'CVE-2'}, 'CVE-2': {'CVE-3'}}, bug_ids)
+
+#   def test_compute_downstream_hierarchy_2(self):
+#     """Tests downstream hierarchy case."""
+
+#     bug_ids = upstream_computation.compute_downstream_hierarchy(
+#         'CVE-2023-21400')
+#     expected = {
+#         'CVE-2023-21400': {
+#             'DLA-3623-1', 'SUSE-SU-2023:3313-1', 'UBUNTU-CVE-2023-21400'
+#         },
+#         'UBUNTU-CVE-2023-21400': {
+#             'USN-6315-1', 'USN-6325-1', 'USN-6330-1', 'USN-6332-1',
+#             'USN-6348-1', 'USN-7234-1', 'USN-7234-2', 'USN-7234-3'
+#         }
+#     }
+#     self.assertEqual(expected, bug_ids)
 
   def test_upstream_group_basic(self):
     """Test the upstream group get by db_id"""
     upstream_computation.main()
     osv.UpstreamGroup(
-      db_id = 'CVE-3',
-      upstream_ids=['CVE-1','CVE-2'],
-      last_modified=datetime.datetime(2024,1,1),
+        id='CVE-3',
+        db_id='CVE-3',
+        upstream_ids=['CVE-1', 'CVE-2'],
+        last_modified=datetime.datetime(2024, 1, 1),
     ).put()
     bug_ids = osv.UpstreamGroup.query(
         osv.UpstreamGroup.db_id == 'CVE-3').get().upstream_ids
     self.assertEqual(['CVE-1', 'CVE-2'], bug_ids)
+
+  def test_upstream_group_empty(self):
+    upstream_computation.main()
+    bug_ids = osv.UpstreamGroup.query(
+        osv.UpstreamGroup.db_id == 'CVE-1').get().upstream_ids
+    self.assertEqual([], bug_ids)
+
+  def test_upstream_group_complex(self):
+    """Testing more complex, realworld case"""
+    upstream_ids = [
+        "CVE-2023-21400", "CVE-2024-40967", "CVE-2024-53103", "CVE-2024-53141",
+        "CVE-2024-53164", "UBUNTU-CVE-2023-21400", "UBUNTU-CVE-2024-40967",
+        "UBUNTU-CVE-2024-53103", "UBUNTU-CVE-2024-53141",
+        "UBUNTU-CVE-2024-53164"
+    ]
+
+    upstream_computation.main()
+    bug_ids = osv.UpstreamGroup.query(
+        osv.UpstreamGroup.db_id == 'USN-7234-3').get().upstream_ids
+
+    self.assertEqual(upstream_ids, bug_ids)
+
 
 if __name__ == '__main__':
   ds_emulator = tests.start_datastore_emulator()

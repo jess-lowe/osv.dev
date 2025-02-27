@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2023 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,50 +16,86 @@
 
 import datetime
 from google.cloud import ndb
-from collections import OrderedDict
+
 import osv
 import osv.logs
 
 import logging
 
 
-def _compute_upstream(target_bug_id, bugs):
+def compute_upstream(target_bug, bugs: dict[str, osv.Bug]):
   """Computes all upstream vulnerabilities for the given bug ID.
   The returned list contains all of the bug IDs that are upstream of the
   target bug ID, including transitive upstreams."""
   visited = set()
-  target_bug_upstream = bugs[target_bug_id]
+
+  target_bug_upstream = target_bug.upstream
   if not target_bug_upstream:
     return []
   to_visit = set(target_bug_upstream)
-  bug_ids = []
   while to_visit:
     bug_id = to_visit.pop()
     if bug_id in visited:
       continue
     visited.add(bug_id)
-    bug_ids.append(bug_id)
-    upstreams = set(bugs[bug_id])
+    upstreams = set()
+    if bug_id in bugs:
+      bug = bugs.get(bug_id)
+      upstreams = set(bug.upstream)
     to_visit.update(upstreams - visited)
 
   # Returns a sorted list of bug IDs, which ensures deterministic behaviour
   # and avoids unnecessary updates.
-  return sorted(bug_ids)
+  return sorted(visited)
 
 
-def _compute_upstream_hierarchy(target_bug_id, bugs):
+def get_upstreams_of_vulnerability(target_bug_id):
+  # query for the bug group and all bugs where target_bug_id exists in their upstream??
+  bug_group = osv.UpstreamGroup.query(osv.UpstreamGroup.db_id == target_bug_id).get()
+  if bug_group is None or bug_group.upstream_ids is None:
+    return []
+  # bugs_group_dict = {id="CVE", [key = "x", upstream_ids]}
+  bugs_group_dict= {b_id: [] for b_id in bug_group.upstream_ids}
+  # bugs_group_dict = {b_id: [ndb.Key(osv.UpstreamGroup, b_id), []] for b_id in bug_group.upstream_ids}
+  bug_groups_keys = [
+    ndb.Key(osv.UpstreamGroup, id) for id in bug_group.upstream_ids]
+  bug_groups_upstream = ndb.get_multi(bug_groups_keys)
+  if bug_groups_upstream is None:
+    return None
+  # bug_groups_upstream = filter(None, bug_groups_upstream)
+  for bug in bug_groups_upstream:
+    if bug is not None:
+      bugs_group_dict[bug.db_id] = bug.upstream_ids
+  # for bug in bug_groups_upstream:
+  #   if bug is not None:
+  #     bugs_group_dict[bug.db_id][1] = bug.upstream_ids
+
+  #   print(bug)
+  #   print("")
+  # bug_groups = {bug.db_id: bug.upstream_ids for bug in bug_groups_upstream if bug is not None}
+  bugs_group_dict[target_bug_id] = bug_group.upstream_ids
+  upstream_hierarchy = _compute_upstream_hierarchy(bug_group, bugs_group_dict)
+  return upstream_hierarchy
+
+def _compute_upstream_hierarchy(target_bug_group:osv.UpstreamGroup, bug_groups: dict[str, list[str]]):
   """Computes all upstream vulnerabilities for the given bug ID.
   The returned list contains all of the bug IDs that are upstream of the
-  target bug ID, including transitive upstreams in a map hierarchy."""
+  target bug ID, including transitive upstreams in a map hierarchy.
+  bug_group:
+        { db_id: bug id
+          upstream_ids: str[bug_ids]
+          last_modified_date}
+  """
   visited = set()
   upstream_map = {}
-  to_visit = set([target_bug_id])
+  to_visit = set([target_bug_group.db_id])
   while to_visit:
     bug_id = to_visit.pop()
     if bug_id in visited:
       continue
     visited.add(bug_id)
-    upstreams = set(bugs[bug_id])
+    
+    upstreams = set(bug_groups.get(bug_id, []))
     if not upstreams:
       continue
     for upstream in upstreams:
@@ -73,120 +109,29 @@ def _compute_upstream_hierarchy(target_bug_id, bugs):
       upstream_map[bug_id] = upstreams
       to_visit.update(upstreams - visited)
   for k, v in upstream_map.items():
-    if k is target_bug_id:
+    if k is target_bug_group.db_id:
       continue
-    upstream_map[target_bug_id] = upstream_map[target_bug_id] - v
+    upstream_map[target_bug_group.db_id] = upstream_map[target_bug_group.db_id] - v
   return upstream_map
 
-
-def _get_downstreams_of_bug_query(bug_id):
-  """Returns a list of all downstream bugs of the given bug ID."""
-  downstreams = {}
-  for bug in osv.Bug.query(osv.Bug.upstream == bug_id):
-    downstreams[bug.db_id] = bug.upstream
-  return downstreams
-
-
-def _get_downstreams_of_bug(bug_id, bugs):
-  """Returns a list of all downstream bugs of the given bug ID."""
-  downstreams = []
-  for bug in bugs:
-    if bug_id in bugs[bug]:
-      downstreams.append(bug)
-  return downstreams
-
-
-def compute_downstream_hierarchy(target_bug_id: str) -> dict[str, set[str]]:
-  """Computes all downstream vulnerabilities for the given bug ID.
-
-  Returns a dictionary representing the downstream hierarchy.  Keys are bug IDs,
-  and values are sets of their immediate downstream bug IDs. The root bug ID's
-  value will be the set of all leaf nodes in its downstream hierarchy.
-
-  Args:
-    target_bug_id: The ID of the bug to compute the downstream hierarchy for.
-
-  Returns:
-    A dictionary representing the downstream hierarchy.
-  """
-
-  downstream_map: dict[str, set[str]] = {}
-  all_downstreams = _get_downstreams_of_bug_query(target_bug_id)
-  # Sort downstreams by number of upstreams
-  all_downstreams = OrderedDict(
-    sorted(all_downstreams.items(), key=lambda item:len(item[1])))
-
-  leaf_bugs: set[str] = set()
-
-  for bug_id, _ in all_downstreams.items():
-    immediate_downstreams = _get_downstreams_of_bug(bug_id, all_downstreams)
-    if not immediate_downstreams:
-      leaf_bugs.add(bug_id)
-    else:
-      downstream_map[bug_id] = set(immediate_downstreams)
-
-  root_leaves = leaf_bugs.copy()
-  for bug_id, downstream_bugs in downstream_map.items():
-    for leaf in leaf_bugs:
-      if leaf in downstream_bugs:
-        root_leaves.discard(leaf)
-    root_leaves.add(bug_id)
-
-  downstream_map[target_bug_id] = root_leaves
-  return downstream_map
-
-def compute_downstream_hierarchy_2(target_bug_id: str) -> dict[str, set[str]]:
-  """Computes all downstream vulnerabilities for the given bug ID.
-
-  Returns a dictionary representing the downstream hierarchy.  Keys are bug IDs,
-  and values are sets of their immediate downstream bug IDs. The root bug ID's
-  value will be the set of all leaf nodes in its downstream hierarchy.
-
-  Args:
-    target_bug_id: The ID of the bug to compute the downstream hierarchy for.
-
-  Returns:
-    A dictionary representing the downstream hierarchy.
-  """
-
-  downstream_map: dict[str, set[str]] = {}
-  all_downstreams = _get_downstreams_of_bug_query(target_bug_id)
-  # Sort downstreams by number of upstreams
-  all_downstreams = OrderedDict(
-    sorted(all_downstreams.items(), key=lambda item:-len(item[1])))
-
-  leaf_bugs: set[str] = set()
-  visited: set[str] = set()
-
-  for bug_id, _ in all_downstreams.items():
-    if bug_id in visited:
-      continue
-    immediate_downstreams = _get_downstreams_of_bug(bug_id, all_downstreams)
-    
-
-  root_leaves = leaf_bugs.copy()
-  for bug_id, downstream_bugs in downstream_map.items():
-    for leaf in leaf_bugs:
-      if leaf in downstream_bugs:
-        root_leaves.discard(leaf)
-    root_leaves.add(bug_id)
-
-  downstream_map[target_bug_id] = root_leaves
-  return downstream_map
 
 def _create_group(bug_id, upstream_ids):
   """Creates a new upstream group in the datastore."""
 
-  new_group = osv.UpstreamGroup(db_id=bug_id)
-  new_group.upstream_ids = upstream_ids
-  new_group.last_modified = datetime.datetime.now()
+  new_group = osv.UpstreamGroup(
+    id=bug_id,
+    db_id=bug_id,
+    upstream_ids=upstream_ids,
+    last_modified=datetime.datetime.now(),
+    )
   new_group.put()
 
 
 def _update_group(upstream_group, upstream_ids: list):
-  """Updates the alias group in the datastore."""
-  if len(upstream_ids) < 1:
-    logging.info('Deleting alias group due to too few bugs: %s', upstream_ids)
+  """Updates the upstream group in the datastore."""
+  if len(upstream_ids) == 0:
+    logging.info('Deleting upstream group due to too few bugs: %s',
+                 upstream_ids)
     upstream_group.key.delete()
     return
 
@@ -206,21 +151,21 @@ def main():
   # Use (> '' OR < '') instead of (!= '') / (> '') to de-duplicate results
   # and avoid datastore emulator problems, see issue #2093
   bugs = osv.Bug.query(ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
-
+  bugs = {bug.db_id: bug for bug in bugs.iter()}
   all_upstream_group = osv.UpstreamGroup.query()
 
-  # for every bug, check if it has an UpstreamGroup.
-  for bug in bugs:
-    # check if the db key is also a db_id in all_upstream_group
-    b = all_upstream_group.filter(osv.UpstreamGroup.db_id == bug.db_id)
-    if b:
-      #recompute the transitive upstreams and compare with the existing group
-      upstream_ids = _compute_upstream(bug.db_id, all_upstream_group)
-      _update_group(b, upstream_ids)
+  for bug_id, bug in bugs.items():
+    # Check if the db key is also a db_id in all_upstream_group
+    bug_group = all_upstream_group.filter(
+        osv.UpstreamGroup.db_id == bug_id).get()
+    # Recompute the transitive upstreams and compare with the existing group
+    upstream_ids = compute_upstream(bug, bugs)
+    if bug_group:
+      # Update the existing UpstreamGroup
+      _update_group(bug_group, upstream_ids)
     else:
       # Create a new UpstreamGroup
-      upstream_ids = _compute_upstream(bug.db_id, all_upstream_group)
-      _create_group(bug, upstream_ids)
+      _create_group(bug_id, upstream_ids)
 
 
 if __name__ == '__main__':
