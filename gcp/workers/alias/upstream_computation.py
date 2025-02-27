@@ -29,7 +29,7 @@ def compute_upstream(target_bug, bugs: dict[str, osv.Bug]):
   target bug ID, including transitive upstreams."""
   visited = set()
 
-  target_bug_upstream = target_bug.upstream
+  target_bug_upstream = target_bug.upstream_raw
   if not target_bug_upstream:
     return []
   to_visit = set(target_bug_upstream)
@@ -41,7 +41,7 @@ def compute_upstream(target_bug, bugs: dict[str, osv.Bug]):
     upstreams = set()
     if bug_id in bugs:
       bug = bugs.get(bug_id)
-      upstreams = set(bug.upstream)
+      upstreams = set(bug.upstream_raw)
     to_visit.update(upstreams - visited)
 
   # Returns a sorted list of bug IDs, which ensures deterministic behaviour
@@ -119,11 +119,10 @@ def _create_group(bug_id, upstream_ids):
   """Creates a new upstream group in the datastore."""
 
   new_group = osv.UpstreamGroup(
-    id=bug_id,
-    db_id=bug_id,
-    upstream_ids=upstream_ids,
-    last_modified=datetime.datetime.now(),
-    )
+      id=bug_id,
+      db_id=bug_id,
+      upstream_ids=upstream_ids,
+      last_modified=datetime.datetime.now())
   new_group.put()
 
 
@@ -150,7 +149,8 @@ def main():
   # Query for all bugs that have upstreams.
   # Use (> '' OR < '') instead of (!= '') / (> '') to de-duplicate results
   # and avoid datastore emulator problems, see issue #2093
-  bugs = osv.Bug.query(ndb.OR(osv.Bug.upstream > '', osv.Bug.upstream < ''))
+  bugs = osv.Bug.query(
+      ndb.OR(osv.Bug.upstream_raw > '', osv.Bug.upstream_raw < ''))
   bugs = {bug.db_id: bug for bug in bugs.iter()}
   all_upstream_group = osv.UpstreamGroup.query()
 

@@ -259,8 +259,9 @@ class Bug(ndb.Model):
   aliases: list[str] = ndb.StringProperty(repeated=True)
   # Related IDs.
   related: list[str] = ndb.StringProperty(repeated=True)
-  # Upstream IDs.
-  upstream: list[str] = ndb.StringProperty(repeated=True)
+  # Raw upstream vulnerability IDs from the source - does not include
+  # exhaustive transitive upstreams
+  upstream_raw: list[str] = ndb.StringProperty(repeated=True)
   # Status of the bug.
   status: int = ndb.IntegerProperty()
   # Timestamp when Bug was allocated.
@@ -744,13 +745,13 @@ class Bug(ndb.Model):
         modified.FromDatetime(
             max(self.last_modified, alias_group.last_modified))
 
-    upstream = {}
+    upstream = []
 
     if include_upstream:
       upstream_group = UpstreamGroup.query(
           UpstreamGroup.db_id == self.db_id).get()
       if upstream_group:
-        upstream = sorted(list(set(upstream_group.upstream_ids)))
+        upstream = sorted(upstream_group.upstream_ids)
         modified = timestamp_pb2.Timestamp()
         modified.FromDatetime(
             max(self.last_modified, upstream_group.last_modified))
@@ -784,24 +785,29 @@ class Bug(ndb.Model):
     """Converts to Vulnerability proto and retrieves aliases asynchronously."""
     vulnerability = self.to_vulnerability(
         include_source=include_source,
-        include_alias=include_alias,
-        include_upstream=include_upstream)
-    alias_group = yield get_aliases_async(vulnerability.id)
-    if alias_group:
-      alias_ids = sorted(list(set(alias_group.bug_ids) - {vulnerability.id}))
-      vulnerability.aliases[:] = alias_ids
-      modified_time = vulnerability.modified.ToDatetime()
-      modified_time = max(alias_group.last_modified, modified_time)
-      vulnerability.modified.FromDatetime(modified_time)
+        include_alias=False,
+        include_upstream=False)
+
     related_bug_ids = yield get_related_async(vulnerability.id)
     vulnerability.related[:] = sorted(
         list(set(related_bug_ids + list(vulnerability.related))))
-    upstream_group = yield get_upstream_async(vulnerability.id)
-    if upstream_group:
-      vulnerability.upstream = upstream_group.upstream_ids
-      modified_time = vulnerability.modified.ToDatetime()
-      modified_time = max(upstream_group.last_modified, modified_time)
-      vulnerability.modified.FromDatetime(modified_time)
+
+    if include_alias:
+      alias_group = yield get_aliases_async(vulnerability.id)
+      if alias_group:
+        alias_ids = sorted(list(set(alias_group.bug_ids) - {vulnerability.id}))
+        vulnerability.aliases[:] = alias_ids
+        modified_time = vulnerability.modified.ToDatetime()
+        modified_time = max(alias_group.last_modified, modified_time)
+        vulnerability.modified.FromDatetime(modified_time)
+
+    if include_upstream:
+      upstream_group = yield get_upstream_async(vulnerability.id)
+      if upstream_group:
+        vulnerability.upstream = upstream_group.upstream_ids
+        modified_time = vulnerability.modified.ToDatetime()
+        modified_time = max(upstream_group.last_modified, modified_time)
+        vulnerability.modified.FromDatetime(modified_time)
     return vulnerability
 
 
@@ -935,7 +941,11 @@ class AliasDenyListEntry(ndb.Model):
 
 
 class UpstreamGroup(ndb.Model):
-  """Upstream group for storing transitive upstreams of a Bug"""
+  """Upstream group for storing transitive upstreams of a Bug
+     This group is in a separate table in order to prevent additional race
+     conditions. This makes sure that only the worker is modifying the Bug
+     entity directly. 
+  """
   # Database ID of the corresponding Bug
   db_id: str = ndb.StringProperty()
   # List of transitive upstreams
@@ -1036,4 +1046,6 @@ def get_related_async(bug_id: str) -> ndb.Future:
 @ndb.tasklet
 def get_upstream_async(bug_id: str) -> ndb.Future:
   """Gets upstream bugs asynchronously."""
-  return UpstreamGroup.query(UpstreamGroup.db_id == bug_id).get_async()
+  upstream_group = yield UpstreamGroup.query(
+      UpstreamGroup.db_id == bug_id).get_async()
+  return upstream_group
