@@ -297,31 +297,31 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
     ).put()
 
     osv.Bug(
-      id='UBUNTU-CVE-2024-40967',
-      db_id='UBUNTU-CVE-2024-40967',
-      status=1,
-      upstream=['CVE-2024-40967'],
-      source='test',
+        id='UBUNTU-CVE-2024-40967',
+        db_id='UBUNTU-CVE-2024-40967',
+        status=1,
+        upstream_raw=['CVE-2024-40967'],
+        source='test',
         public=True,
         import_last_modified=datetime.datetime(2023, 8, 14),
     ).put()
 
     osv.Bug(
-      id='UBUNTU-CVE-2024-53103',
-      db_id='UBUNTU-CVE-2024-53103',
-      status=1,
-      upstream=['CVE-2024-53103'],
-      source='test',
+        id='UBUNTU-CVE-2024-53103',
+        db_id='UBUNTU-CVE-2024-53103',
+        status=1,
+        upstream_raw=['CVE-2024-53103'],
+        source='test',
         public=True,
         import_last_modified=datetime.datetime(2023, 8, 14),
     ).put()
 
     osv.Bug(
-      id='UBUNTU-CVE-2024-53141',
-      db_id='UBUNTU-CVE-2024-53141',
-      status=1,
-      upstream=['CVE-2024-53141'],
-      source='test',
+        id='UBUNTU-CVE-2024-53141',
+        db_id='UBUNTU-CVE-2024-53141',
+        status=1,
+        upstream_raw=['CVE-2024-53141'],
+        source='test',
         public=True,
         import_last_modified=datetime.datetime(2023, 8, 14),
     ).put()
@@ -430,8 +430,19 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
     upstream_computation.main()
     print([group.db_id for group in osv.UpstreamGroup.query().iter()])
     bug_ids = upstream_computation.get_upstreams_of_vulnerability('USN-7234-3')
+    expected = {
+        'USN-7234-3': {
+            'UBUNTU-CVE-2024-53164', 'UBUNTU-CVE-2024-53103',
+            'UBUNTU-CVE-2024-40967', 'UBUNTU-CVE-2023-21400', 'CVE-2024-53164',
+            'UBUNTU-CVE-2024-53141'
+        },
+        'UBUNTU-CVE-2024-53141': {'CVE-2024-53141'},
+        'UBUNTU-CVE-2024-53103': {'CVE-2024-53103'},
+        'UBUNTU-CVE-2024-40967': {'CVE-2024-40967'},
+        'UBUNTU-CVE-2023-21400': {'CVE-2023-21400'}
+    }
+    self.assertEqual(expected, bug_ids)
 
-    self.assertEqual(['CVE-1', 'CVE-2'], bug_ids)
 
 #   def test_compute_downstream(self):
 #     """Tests downstream case."""
@@ -494,7 +505,6 @@ class UpstreamTest(unittest.TestCase, tests.ExpectationTest(TEST_DATA_DIR)):
         osv.UpstreamGroup.db_id == 'USN-7234-3').get().upstream_ids
 
     self.assertEqual(upstream_ids, bug_ids)
-
 
 if __name__ == '__main__':
   ds_emulator = tests.start_datastore_emulator()
