@@ -157,21 +157,6 @@ class LogTraceFilter:
 trace_filter = LogTraceFilter()
 
 
-def check_for_aliases(vuln_id: str) -> osv.Bug | None:
-  """ Search for aliases of a vuln if only one exists """
-  alias_group = osv.AliasGroup.query(osv.AliasGroup.bug_ids == vuln_id).get()
-  if alias_group and len(alias_group.bug_ids) == 2:
-    # Assume if current ID doesn't exist, but an alias does, bug must exist.
-    alias = alias_group.bug_ids[0]
-    if alias == vuln_id:
-      alias = alias_group.bug_ids[1]
-    bug = osv.Bug.get_by_id(alias)
-    # Confirm bug exists
-    if bug:
-      return bug
-  return None
-
-
 class OSVServicer(osv_service_v1_pb2_grpc.OSVServicer,
                   health_pb2_grpc.HealthServicer):
   """V1 OSV servicer."""
