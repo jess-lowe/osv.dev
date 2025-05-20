@@ -157,6 +157,21 @@ class LogTraceFilter:
 trace_filter = LogTraceFilter()
 
 
+def check_for_aliases(vuln_id: str) -> osv.Bug | None:
+  """ Search for aliases of a vuln if only one exists """
+  alias_group = osv.AliasGroup.query(osv.AliasGroup.bug_ids == vuln_id).get()
+  if alias_group and len(alias_group.bug_ids) == 2:
+    # Assume if current ID doesn't exist, but an alias does, bug must exist.
+    alias = alias_group.bug_ids[0]
+    if alias == vuln_id:
+      alias = alias_group.bug_ids[1]
+    bug = osv.Bug.get_by_id(alias)
+    # Confirm bug exists
+    if bug:
+      return bug
+  return None
+
+
 class OSVServicer(osv_service_v1_pb2_grpc.OSVServicer,
                   health_pb2_grpc.HealthServicer):
   """V1 OSV servicer."""
@@ -166,7 +181,24 @@ class OSVServicer(osv_service_v1_pb2_grpc.OSVServicer,
   def GetVulnById(self, request, context: grpc.ServicerContext):
     """Return a `Vulnerability` object for a given OSV ID."""
     bug = osv.Bug.get_by_id(request.id)
-    if not bug or bug.status == osv.BugStatus.UNPROCESSED:
+
+    if not bug:
+      # Check for aliases
+      alias_group = osv.AliasGroup.query(
+          osv.AliasGroup.bug_ids == request.id).get()
+      if alias_group:
+        string_builder = {
+            f'{alias} ' for alias in alias_group.bug_ids if alias != request.id
+        }
+        alias_string = ''.join(string_builder)
+        context.abort(
+            grpc.StatusCode.NOT_FOUND,
+            f'Bug not found, but the following aliases were: {alias_string}')
+        return None
+      context.abort(grpc.StatusCode.NOT_FOUND, 'Bug not found.')
+      return None
+
+    if bug.status == osv.BugStatus.UNPROCESSED:
       context.abort(grpc.StatusCode.NOT_FOUND, 'Bug not found.')
       return None
 
