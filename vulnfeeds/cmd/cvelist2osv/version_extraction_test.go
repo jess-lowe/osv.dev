@@ -92,6 +92,7 @@ func TestBuildVersionRange(t *testing.T) {
 }
 
 func TestFindNormalAffectedRanges(t *testing.T) {
+	extractor := &DefaultVersionExtractor{}
 	tests := []struct {
 		name          string
 		affected      cves.Affected
@@ -163,11 +164,32 @@ func TestFindNormalAffectedRanges(t *testing.T) {
 			},
 			wantRangeType: VersionRangeTypeGit,
 		},
+		{
+			name: "split range",
+			affected: cves.Affected{
+				Versions: []cves.Versions{
+					{
+						Status:   "affected",
+						Version:  "3.0",
+						LessThan: "unspecified",
+					},
+					{
+						Status:  "affected",
+						Version: "unspecified",
+						LessThan: "3.5",
+					},
+				},
+			},
+			wantRanges: []osvschema.Range{
+				buildVersionRange("3.0", "", "3.5"),
+			},
+			wantRangeType: VersionRangeTypeEcosystem,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotRanges, gotRangeType := findNormalAffectedRanges(tt.affected, &ConversionMetrics{})
+			gotRanges, gotRangeType := extractor.FindNormalAffectedRanges(tt.affected, &ConversionMetrics{})
 			if diff := cmp.Diff(tt.wantRanges, gotRanges); diff != "" {
 				t.Errorf("findNormalAffectedRanges() ranges mismatch (-want +got):\n%s", diff)
 			}
