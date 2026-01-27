@@ -53,10 +53,40 @@ type ConversionMetrics struct {
 	ResolvedRangesCount   int                              `json:"resolved_ranges_count"`
 }
 
+// LogLevel is the severity of the log message.
+type LogLevel int
+
+const (
+	Debug LogLevel = iota
+	Info
+	Warn
+	Error
+)
+
 // AddNote adds a formatted note to the ConversionMetrics.
+// It accepts an optional LogLevel as the last argument.
+// If no LogLevel is provided, it defaults to LogLevelDebug.
 func (m *ConversionMetrics) AddNote(format string, a ...any) {
+	level := Debug
+	if len(a) > 0 {
+		if l, ok := a[len(a)-1].(LogLevel); ok {
+			level = l
+			a = a[:len(a)-1]
+		}
+	}
+
 	m.Notes = append(m.Notes, fmt.Sprintf(format, a...))
-	logger.Debug(fmt.Sprintf(format, a...), slog.String("cna", m.CNA), slog.String("cve", string(m.CVEID)))
+
+	switch level {
+	case Debug:
+		logger.Debug(fmt.Sprintf(format, a...), slog.String("cna", m.CNA), slog.String("cve", string(m.CVEID)))
+	case Info:
+		logger.Info(fmt.Sprintf(format, a...), slog.String("cna", m.CNA), slog.String("cve", string(m.CVEID)))
+	case Warn:
+		logger.Warn(fmt.Sprintf(format, a...), slog.String("cna", m.CNA), slog.String("cve", string(m.CVEID)))
+	case Error:
+		logger.Error(fmt.Sprintf(format, a...), slog.String("cna", m.CNA), slog.String("cve", string(m.CVEID)))
+	}
 }
 
 // AddSource appends a source to the ConversionMetrics
