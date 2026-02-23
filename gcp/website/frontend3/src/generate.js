@@ -52,15 +52,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Packages
     document.querySelectorAll(".package-item").forEach(pkgEl => {
+      const ecosystem = pkgEl.querySelector(".package-ecosystem").value;
+      const name = pkgEl.querySelector(".package-name").value;
+      const purl = pkgEl.querySelector(".package-purl").value;
+
       const pkg = {
-        package: {
-          ecosystem: pkgEl.querySelector(".package-ecosystem").value,
-          name: pkgEl.querySelector(".package-name").value,
-          purl: pkgEl.querySelector(".package-purl").value || undefined
-        },
         ranges: [],
         versions: [] // TODO: Add versions support if needed
       };
+
+      if (name || ecosystem || purl) {
+        pkg.package = {
+          ecosystem: ecosystem || undefined,
+          name: name || undefined,
+          purl: purl || undefined
+        };
+      }
 
       pkgEl.querySelectorAll(".range-item").forEach(rangeEl => {
         const range = {
@@ -80,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       });
 
-      if (pkg.package.name || pkg.ranges.length > 0) {
+      if (pkg.package || pkg.ranges.length > 0) {
         data.affected.push(pkg);
       }
     });
@@ -128,7 +135,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (data.affected) {
       data.affected.forEach((aff, i) => {
-        if (!aff.package.name && (!aff.ranges || aff.ranges.length === 0)) {
+        const hasPackageName = aff.package && aff.package.name;
+        if (!hasPackageName && (!aff.ranges || aff.ranges.length === 0)) {
            errors.push(`Affected Item ${i+1}: Package Name or Range is required.`);
         }
         if (aff.ranges) {
@@ -358,6 +366,10 @@ document.addEventListener("DOMContentLoaded", function () {
       pkgItem.querySelector(".package-ecosystem").value = aff.package.ecosystem || "";
       pkgItem.querySelector(".package-name").value = aff.package.name || "";
       pkgItem.querySelector(".package-purl").value = aff.package.purl || "";
+    } else {
+      pkgItem.querySelector(".package-ecosystem").value = "";
+      pkgItem.querySelector(".package-name").value = "";
+      pkgItem.querySelector(".package-purl").value = "";
     }
 
     if (aff.ranges) {
