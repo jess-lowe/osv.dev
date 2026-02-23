@@ -144,7 +144,7 @@ make run-website
 
 #### Running a local UI instance
 
-For non-internal contributors, you can use the website emulator which does
+For contributors without access to the GCP project, you can use the website emulator which does
 not require Google Cloud project access. This emulator uses a local datastore
 and loads data from a local directory.
 
