@@ -1,0 +1,314 @@
+@use "styles.scss";
+
+.generate-page {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  .title {
+    font-size: 32px;
+    margin: 0;
+  }
+
+  .header-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+
+    .load-section {
+      display: flex;
+      gap: 10px;
+
+      input {
+        padding: 8px 12px;
+        background: #333;
+        border: 1px solid #555;
+        color: #fff;
+        border-radius: 4px;
+        width: 250px;
+      }
+    }
+  }
+
+  .editor-container {
+    height: calc(100vh - 140px);
+    overflow-y: auto;
+    padding-right: 10px;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: #292929;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 4px;
+    }
+  }
+
+  .form-section {
+    background: #333;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #444;
+
+    h3 {
+      margin-bottom: 16px;
+      border-bottom: 1px solid #555;
+      padding-bottom: 8px;
+      color: #fff;
+      font-size: 18px;
+    }
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 16px;
+
+    label {
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    input, select, textarea {
+      padding: 10px;
+      background: #222;
+      border: 1px solid #555;
+      color: #fff;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 14px;
+
+      &:focus {
+        border-color: #c5221f;
+        outline: none;
+        box-shadow: 0 0 0 1px #c5221f;
+      }
+    }
+
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  .form-row {
+    display: flex;
+    gap: 16px;
+
+    .form-group {
+      flex: 1;
+    }
+
+    @media (max-width: 600px) {
+      flex-direction: column;
+      gap: 0;
+    }
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    h3, h4, h5 {
+      margin: 0;
+    }
+  }
+
+  .dynamic-item {
+    background: #444;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    position: relative;
+    border: 1px solid #555;
+
+    .item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+
+      .item-title {
+        font-weight: bold;
+        color: #ec928e;
+        font-family: "Overpass Mono", monospace;
+        font-size: 14px;
+        text-transform: uppercase;
+      }
+    }
+  }
+
+  .remove-btn {
+    background: transparent;
+    border: none;
+    color: #ec928e;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    line-height: 1;
+
+    &:hover {
+      color: #c5221f;
+    }
+  }
+
+  .ranges-section {
+    margin-top: 15px;
+    padding-left: 15px;
+    border-left: 2px solid #666;
+  }
+
+  .range-item {
+    background: #3a3a3a;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    border: 1px solid #555;
+  }
+
+  .events-section {
+    margin-top: 12px;
+    padding-left: 12px;
+    border-left: 2px solid #777;
+  }
+
+  .event-item {
+    background: #333;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    align-items: center;
+
+    .remove-btn {
+      font-size: 18px;
+    }
+  }
+
+  .preview-container {
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .preview-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .preview-tab-btn {
+    background: #333;
+    border: 1px solid #444;
+    border-bottom: none;
+    color: #aaa;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-family: "Overpass Mono", monospace;
+    font-size: 14px;
+    transition: all 0.2s;
+
+    &.active {
+      background: #444;
+      color: #fff;
+      border-color: #555;
+      font-weight: bold;
+    }
+
+    &:hover:not(.active) {
+      background: #3a3a3a;
+      color: #eee;
+    }
+  }
+
+  .preview-content {
+    display: none;
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 0 8px 8px 8px;
+    flex-grow: 1;
+    overflow: auto;
+    border: 1px solid #444;
+
+    &.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: #1e1e1e;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 4px;
+    }
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  .json-wrapper {
+    background: #000;
+    padding: 15px;
+    border-radius: 4px;
+    flex-grow: 1;
+    overflow: auto;
+    border: 1px solid #333;
+
+    pre {
+      margin: 0;
+      color: #ec928e;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  }
+
+  .preview-info {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: #2a2a2a;
+    border-radius: 4px;
+    border-left: 4px solid #c5221f;
+  }
+
+  .validation-errors {
+    margin-top: 15px;
+    color: #ec928e;
+    font-size: 13px;
+    background: rgba(197, 34, 31, 0.1);
+    padding: 10px;
+    border-radius: 4px;
+    display: none;
+
+    &.visible {
+      display: block;
+    }
+  }
+
+  .link-button.small {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-family: "Overpass Mono", monospace;
+  }
+}

@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+{% set active_section = 'generate' %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="generate-page">
+  <div class="mdc-layout-grid">
+    <div class="mdc-layout-grid__inner">
+      <div class="mdc-layout-grid__cell--span-6 editor-container">
+        <div class="header-with-action">
+          <h1 class="title">OSV Generator</h1>
+          <div class="load-section">
+            <input type="text" id="load-id" placeholder="OSV ID (e.g. GHSA-xxxx)">
+            <button id="load-btn" class="link-button">Load</button>
+          </div>
+        </div>
+
+        <form id="osv-form">
+          <div class="form-section">
+            <h3>General Information</h3>
+            <div class="form-group">
+              <label for="id">ID</label>
+              <input type="text" id="id" name="id" placeholder="Optional (e.g. GO-2024-0001)">
+            </div>
+            <div class="form-group">
+              <label for="summary">Summary</label>
+              <input type="text" id="summary" name="summary" placeholder="One-line summary of the vulnerability">
+            </div>
+            <div class="form-group">
+              <label for="details">Details</label>
+              <textarea id="details" name="details" rows="5" placeholder="Detailed description in Markdown"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="published">Published</label>
+                <input type="datetime-local" id="published" name="published">
+              </div>
+              <div class="form-group">
+                <label for="modified">Modified</label>
+                <input type="datetime-local" id="modified" name="modified">
+              </div>
+            </div>
+          </div>
+
+          <!-- Affected Packages -->
+          <div class="form-section">
+            <div class="section-header">
+              <h3>Affected Packages</h3>
+              <button type="button" id="add-package-btn" class="link-button small">Add Package</button>
+            </div>
+            <div id="packages-list" class="dynamic-list"></div>
+          </div>
+
+          <!-- Severity -->
+          <div class="form-section">
+            <div class="section-header">
+              <h3>Severity</h3>
+              <button type="button" id="add-severity-btn" class="link-button small">Add Severity</button>
+            </div>
+            <div id="severity-list" class="dynamic-list"></div>
+          </div>
+
+          <!-- References -->
+          <div class="form-section">
+            <div class="section-header">
+              <h3>References</h3>
+              <button type="button" id="add-reference-btn" class="link-button small">Add Reference</button>
+            </div>
+            <div id="references-list" class="dynamic-list"></div>
+          </div>
+
+          <!-- Credits -->
+          <div class="form-section">
+            <div class="section-header">
+              <h3>Credits</h3>
+              <button type="button" id="add-credit-btn" class="link-button small">Add Credit</button>
+            </div>
+            <div id="credits-list" class="dynamic-list"></div>
+          </div>
+        </form>
+      </div>
+
+      <div class="mdc-layout-grid__cell--span-6 preview-container">
+        <div class="preview-tabs">
+          <button class="preview-tab-btn active" data-target="json-preview">JSON</button>
+          <button class="preview-tab-btn" data-target="osv-preview-tab">OSV Preview</button>
+        </div>
+
+        <div id="json-preview" class="preview-content active">
+          <div class="preview-actions">
+            <button id="copy-json-btn" class="link-button">Copy to Clipboard</button>
+            <button id="download-json-btn" class="link-button">Download JSON</button>
+          </div>
+          <div class="json-wrapper">
+             <pre id="json-output"></pre>
+          </div>
+          <div id="validation-errors" class="validation-errors"></div>
+        </div>
+
+        <div id="osv-preview-tab" class="preview-content">
+          <div class="preview-info">Note: This is a real-time preview of how the entry will look on osv.dev</div>
+          <div id="osv-preview-output"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Templates for dynamic items -->
+<template id="package-template">
+  <div class="dynamic-item package-item">
+    <div class="item-header">
+      <span class="item-title">Package</span>
+      <button type="button" class="remove-btn material-icons">delete</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ecosystem</label>
+        <input type="text" class="package-ecosystem" list="ecosystems-list" placeholder="e.g. PyPI">
+      </div>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" class="package-name" placeholder="e.g. requests">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>PURL</label>
+      <input type="text" class="package-purl" placeholder="e.g. pkg:pypi/requests">
+    </div>
+    <div class="ranges-section">
+      <div class="section-header">
+        <h4>Ranges</h4>
+        <button type="button" class="add-range-btn link-button small">Add Range</button>
+      </div>
+      <div class="ranges-list"></div>
+    </div>
+  </div>
+</template>
+
+<template id="range-template">
+  <div class="range-item">
+    <div class="item-header">
+      <span class="item-title">Range</span>
+      <button type="button" class="remove-btn material-icons">close</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select class="range-type">
+          <option value="ECOSYSTEM">ECOSYSTEM</option>
+          <option value="SEMVER">SEMVER</option>
+          <option value="GIT">GIT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Repo (for GIT)</label>
+        <input type="text" class="range-repo">
+      </div>
+    </div>
+    <div class="events-section">
+       <div class="section-header">
+        <h5>Events</h5>
+        <button type="button" class="add-event-btn link-button small">Add Event</button>
+      </div>
+      <div class="events-list"></div>
+    </div>
+  </div>
+</template>
+
+<template id="event-template">
+  <div class="event-item form-row">
+    <div class="form-group">
+      <select class="event-type">
+        <option value="introduced">introduced</option>
+        <option value="fixed">fixed</option>
+        <option value="last_affected">last_affected</option>
+        <option value="limit">limit</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <input type="text" class="event-value" placeholder="version or commit">
+    </div>
+    <button type="button" class="remove-btn material-icons">close</button>
+  </div>
+</template>
+
+<template id="severity-template">
+  <div class="dynamic-item severity-item">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select class="severity-type">
+          <option value="CVSS_V3">CVSS_V3</option>
+          <option value="CVSS_V2">CVSS_V2</option>
+          <option value="CVSS_V4">CVSS_V4</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Score (Vector)</label>
+        <input type="text" class="severity-score" placeholder="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H">
+      </div>
+      <button type="button" class="remove-btn material-icons">delete</button>
+    </div>
+  </div>
+</template>
+
+<template id="reference-template">
+  <div class="dynamic-item reference-item">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select class="reference-type">
+          <option value="ADVISORY">ADVISORY</option>
+          <option value="ARTICLE">ARTICLE</option>
+          <option value="DETECTION">DETECTION</option>
+          <option value="DISCUSSION">DISCUSSION</option>
+          <option value="REPORT">REPORT</option>
+          <option value="FIX">FIX</option>
+          <option value="INTRODUCED">INTRODUCED</option>
+          <option value="PACKAGE">PACKAGE</option>
+          <option value="EVIDENCE">EVIDENCE</option>
+          <option value="WEB">WEB</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>URL</label>
+        <input type="url" class="reference-url" placeholder="https://...">
+      </div>
+      <button type="button" class="remove-btn material-icons">delete</button>
+    </div>
+  </div>
+</template>
+
+<template id="credit-template">
+  <div class="dynamic-item credit-item">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" class="credit-name" placeholder="Name or Handle">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select class="credit-type">
+          <option value="FINDER">FINDER</option>
+          <option value="REPORTER">REPORTER</option>
+          <option value="REMEDIATION_DEVELOPER">REMEDIATION_DEVELOPER</option>
+          <option value="REMEDIATION_REVIEWER">REMEDIATION_REVIEWER</option>
+          <option value="REMEDIATION_VERIFIER">REMEDIATION_VERIFIER</option>
+          <option value="TOOL">TOOL</option>
+          <option value="SPONSOR">SPONSOR</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </div>
+      <button type="button" class="remove-btn material-icons">delete</button>
+    </div>
+  </div>
+</template>
+
+<datalist id="ecosystems-list">
+  {% for ecosystem in ecosystems %}
+  <option value="{{ ecosystem }}">
+  {% endfor %}
+</datalist>
+
+{% endblock %}
