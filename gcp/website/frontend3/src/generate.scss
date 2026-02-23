@@ -139,11 +139,17 @@
     position: relative;
     border: 1px solid #555;
 
-    .item-header {
+    summary.item-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
+      cursor: pointer;
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
 
       .item-title {
         font-weight: bold;

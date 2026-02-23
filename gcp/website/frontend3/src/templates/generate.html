@@ -2,7 +2,6 @@
 {% set active_section = 'generate' %}
 
 {% block extra_head %}
-<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -48,8 +47,8 @@
           <!-- Affected Packages -->
           <div class="form-section">
             <div class="section-header">
-              <h3>Affected Packages</h3>
-              <button type="button" id="add-package-btn" class="link-button small">Add Package</button>
+              <h3>Affected Entries</h3>
+              <button type="button" id="add-package-btn" class="link-button small">Add Affected Entry</button>
             </div>
             <div id="packages-list" class="dynamic-list"></div>
           </div>
@@ -111,11 +110,11 @@
 
 <!-- Templates for dynamic items -->
 <template id="package-template">
-  <div class="dynamic-item package-item">
-    <div class="item-header">
-      <span class="item-title">Package</span>
+  <details class="dynamic-item package-item" open>
+    <summary class="item-header">
+      <span class="item-title">Affected Entry</span>
       <button type="button" class="remove-btn material-icons">delete</button>
-    </div>
+    </summary>
     <div class="form-row">
       <div class="form-group">
         <label>Ecosystem</label>
@@ -129,9 +128,15 @@
     <div class="form-group hint-text">
       Package details are optional if you provide a GIT range below.
     </div>
-    <div class="form-group">
-      <label>PURL</label>
-      <input type="text" class="package-purl" placeholder="e.g. pkg:pypi/requests">
+    <div class="form-row">
+      <div class="form-group">
+        <label>PURL</label>
+        <input type="text" class="package-purl" placeholder="e.g. pkg:pypi/requests">
+      </div>
+      <div class="form-group">
+        <label>Versions (comma separated)</label>
+        <input type="text" class="package-versions" placeholder="e.g. 1.0.0, 1.1.0">
+      </div>
     </div>
     <div class="ranges-section">
       <div class="section-header">
@@ -140,7 +145,7 @@
       </div>
       <div class="ranges-list"></div>
     </div>
-  </div>
+  </details>
 </template>
 
 <template id="range-template">

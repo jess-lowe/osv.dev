@@ -247,7 +247,7 @@ def render_preview():
         api_url=api_url)
   except Exception as e:
     logging.error('Failed to render preview: %s', e)
-    return 'Failed to render preview', 500
+    return str(e), 500
 
 
 @blueprint.route('/ecosystems')

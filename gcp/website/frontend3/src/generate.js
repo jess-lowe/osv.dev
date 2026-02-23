@@ -55,10 +55,11 @@ document.addEventListener("DOMContentLoaded", function () {
       const ecosystem = pkgEl.querySelector(".package-ecosystem").value;
       const name = pkgEl.querySelector(".package-name").value;
       const purl = pkgEl.querySelector(".package-purl").value;
+      const versionsStr = pkgEl.querySelector(".package-versions").value;
 
       const pkg = {
         ranges: [],
-        versions: [] // TODO: Add versions support if needed
+        versions: versionsStr ? versionsStr.split(",").map(v => v.trim()).filter(v => v) : []
       };
 
       if (name || ecosystem || purl) {
@@ -82,14 +83,12 @@ document.addEventListener("DOMContentLoaded", function () {
             range.events.push({ [type]: value });
           }
         });
-        if (range.events.length > 0) {
-          pkg.ranges.push(range);
-        }
+        pkg.ranges.push(range);
       });
 
-      if (pkg.package || pkg.ranges.length > 0) {
-        data.affected.push(pkg);
-      }
+      if (pkg.ranges.length === 0) delete pkg.ranges;
+      if (pkg.versions.length === 0) delete pkg.versions;
+      data.affected.push(pkg);
     });
 
     // Severity
@@ -136,8 +135,10 @@ document.addEventListener("DOMContentLoaded", function () {
     if (data.affected) {
       data.affected.forEach((aff, i) => {
         const hasPackageName = aff.package && aff.package.name;
-        if (!hasPackageName && (!aff.ranges || aff.ranges.length === 0)) {
-           errors.push(`Affected Item ${i+1}: Package Name or Range is required.`);
+        const hasRanges = aff.ranges && aff.ranges.length > 0;
+        const hasVersions = aff.versions && aff.versions.length > 0;
+        if (!hasPackageName && !hasRanges && !hasVersions) {
+           errors.push(`Affected Entry ${i+1}: At least Package Name, Versions, or Ranges must be provided.`);
         }
         if (aff.ranges) {
           aff.ranges.forEach((range, j) => {
@@ -370,6 +371,12 @@ document.addEventListener("DOMContentLoaded", function () {
       pkgItem.querySelector(".package-ecosystem").value = "";
       pkgItem.querySelector(".package-name").value = "";
       pkgItem.querySelector(".package-purl").value = "";
+    }
+
+    if (aff.versions) {
+      pkgItem.querySelector(".package-versions").value = aff.versions.join(", ");
+    } else {
+      pkgItem.querySelector(".package-versions").value = "";
     }
 
     if (aff.ranges) {
