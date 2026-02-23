@@ -58,6 +58,9 @@
         <li class="{{ 'active' if active_section == 'vulnerabilities' else '' }} page-link">
           <a href="{{ url_for('frontend_handlers.list_vulnerabilities') }}">Vulnerability Database</a>
         </li>
+        <li class="{{ 'active' if active_section == 'generate' else '' }} page-link">
+          <a href="{{ url_for('frontend_handlers.generate') }}">Generate</a>
+        </li>
         <li class="{{ 'active' if active_section == 'blog' else '' }} page-link">
           <a href="{{ url_for('frontend_handlers.blog') }}">Blog</a>
         </li>

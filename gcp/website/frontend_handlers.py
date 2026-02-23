@@ -225,6 +225,31 @@ def linter():
   return render_template('linter.html')
 
 
+@blueprint.route('/generate', strict_slashes=False)
+def generate():
+  return render_template('generate.html', ecosystems=osv_get_ecosystems())
+
+
+@blueprint.route('/api/render_preview', methods=['POST'])
+def render_preview():
+  """Render a vulnerability preview from JSON."""
+  try:
+    vuln_data = request.json
+    if not vuln_data:
+      return 'No data provided', 400
+
+    processed_vuln = vuln_to_response_from_dict(vuln_data)
+    api_url = utils.api_url()
+
+    return render_template(
+        'vulnerability_content.html',
+        vulnerability=processed_vuln,
+        api_url=api_url)
+  except Exception as e:
+    logging.error('Failed to render preview: %s', e)
+    return str(e), 500
+
+
 @blueprint.route('/ecosystems')
 def ecosystems():
   return redirect('https://storage.googleapis.com/osv-vulnerabilities/ecosystems.txt')  # pylint: disable=line-too-long
@@ -337,12 +362,20 @@ def vulnerability_json_redirector(potential_vuln_id):
 def vuln_to_response(vuln):
   """Convert a Vulnerability proto to a response object."""
   response = osv.vulnerability_to_dict(vuln)
+  return vuln_to_response_from_dict(response, include_external=True)
+
+
+def vuln_to_response_from_dict(response, include_external=False):
+  """Process a dict representing a vulnerability for rendering."""
   add_cvss_score(response)
   add_links(response)
-  add_source_info(response)
-  add_stream_info(response)
-  add_known_osv_bugs(response)
-  add_stream_strings(response)
+
+  if include_external:
+    add_source_info(response)
+    add_stream_info(response)
+    add_known_osv_bugs(response)
+    add_stream_strings(response)
+
   return response
 
 
@@ -576,10 +609,21 @@ def _commit_to_link(repo_url, commit):
 
 def osv_get_ecosystems():
   """Get list of ecosystems."""
-  query = osv.ListedVulnerability.query(
-      projection=[osv.ListedVulnerability.ecosystems], distinct=True)
-  return sorted([vuln.ecosystems[0] for vuln in query if vuln.ecosystems],
-                key=str.lower)
+  # Use the ecosystems defined in the OSV schema.
+  schema_path = os.path.join(
+      os.path.dirname(__file__), '..', '..', 'osv', 'osv-schema',
+      'ecosystems.json')
+  try:
+    with open(schema_path) as f:
+      ecosystems_data = json.load(f)
+      return sorted(ecosystems_data.keys(), key=str.lower)
+  except Exception as e:
+    logging.error('Failed to load ecosystems from schema: %s', e)
+    # Fallback to database query if schema file is missing
+    query = osv.ListedVulnerability.query(
+        projection=[osv.ListedVulnerability.ecosystems], distinct=True)
+    return sorted([vuln.ecosystems[0] for vuln in query if vuln.ecosystems],
+                  key=str.lower)
 
 
 @cache.smart_cache(
