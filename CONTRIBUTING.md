@@ -142,7 +142,7 @@ gcloud auth login --update-adc
 make run-website
 ```
 
-#### Running a local UI instance (non-internal contributors)
+#### Running a local UI instance
 
 For non-internal contributors, you can use the website emulator which does
 not require Google Cloud project access. This emulator uses a local datastore
