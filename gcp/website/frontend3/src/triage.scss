@@ -11,8 +11,18 @@
   margin-bottom: 20px;
 }
 
-#vuln-id-input {
+.standard-input {
   width: 300px;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+#load-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .triage-grid {
