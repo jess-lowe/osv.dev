@@ -36,14 +36,28 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  function parseJsonSafe(str) {
+    if (!str || !str.trim()) return undefined;
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   function getFormData() {
     const formData = new FormData(osvForm);
     const data = {
       id: formData.get("id") || undefined,
       summary: formData.get("summary") || undefined,
       details: formData.get("details") || undefined,
+      aliases: formData.get("aliases") ? formData.get("aliases").split(",").map(a => a.trim()).filter(a => a) : undefined,
+      related: formData.get("related") ? formData.get("related").split(",").map(r => r.trim()).filter(r => r) : undefined,
       published: formData.get("published") ? new Date(formData.get("published")).toISOString() : undefined,
       modified: formData.get("modified") ? new Date(formData.get("modified")).toISOString() : new Date().toISOString(),
+      withdrawn: formData.get("withdrawn") ? new Date(formData.get("withdrawn")).toISOString() : undefined,
+      database_specific: parseJsonSafe(formData.get("database_specific")),
+      custom: parseJsonSafe(formData.get("custom")),
       affected: [],
       severity: [],
       references: [],
@@ -56,10 +70,14 @@ document.addEventListener("DOMContentLoaded", function () {
       const name = pkgEl.querySelector(".package-name").value;
       const purl = pkgEl.querySelector(".package-purl").value;
       const versionsStr = pkgEl.querySelector(".package-versions").value;
+      const ecosystemSpecificStr = pkgEl.querySelector(".package-ecosystem-specific").value;
+      const databaseSpecificStr = pkgEl.querySelector(".package-database-specific").value;
 
       const pkg = {
         ranges: [],
-        versions: versionsStr ? versionsStr.split(",").map(v => v.trim()).filter(v => v) : []
+        versions: versionsStr ? versionsStr.split(",").map(v => v.trim()).filter(v => v) : [],
+        ecosystem_specific: parseJsonSafe(ecosystemSpecificStr),
+        database_specific: parseJsonSafe(databaseSpecificStr)
       };
 
       if (name || ecosystem || purl) {
@@ -118,7 +136,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
-    // Clean up empty arrays
+    // Clean up empty arrays and undefined properties
+    if (data.aliases && data.aliases.length === 0) delete data.aliases;
+    if (data.related && data.related.length === 0) delete data.related;
     if (data.affected.length === 0) delete data.affected;
     if (data.severity.length === 0) delete data.severity;
     if (data.references.length === 0) delete data.references;
@@ -310,12 +330,21 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("id").value = data.id || "";
     document.getElementById("summary").value = data.summary || "";
     document.getElementById("details").value = data.details || "";
+    document.getElementById("aliases").value = data.aliases ? data.aliases.join(", ") : "";
+    document.getElementById("related").value = data.related ? data.related.join(", ") : "";
     if (data.published) {
         document.getElementById("published").value = data.published.slice(0, 16);
     }
     if (data.modified) {
         document.getElementById("modified").value = data.modified.slice(0, 16);
     }
+    if (data.withdrawn) {
+        document.getElementById("withdrawn").value = data.withdrawn.slice(0, 16);
+    } else {
+        document.getElementById("withdrawn").value = "";
+    }
+    document.getElementById("database_specific").value = data.database_specific ? JSON.stringify(data.database_specific, null, 2) : "";
+    document.getElementById("custom").value = data.custom ? JSON.stringify(data.custom, null, 2) : "";
 
     // Affected
     if (data.affected) {
@@ -377,6 +406,18 @@ document.addEventListener("DOMContentLoaded", function () {
       pkgItem.querySelector(".package-versions").value = aff.versions.join(", ");
     } else {
       pkgItem.querySelector(".package-versions").value = "";
+    }
+
+    if (aff.ecosystem_specific) {
+      pkgItem.querySelector(".package-ecosystem-specific").value = JSON.stringify(aff.ecosystem_specific, null, 2);
+    } else {
+      pkgItem.querySelector(".package-ecosystem-specific").value = "";
+    }
+
+    if (aff.database_specific) {
+      pkgItem.querySelector(".package-database-specific").value = JSON.stringify(aff.database_specific, null, 2);
+    } else {
+      pkgItem.querySelector(".package-database-specific").value = "";
     }
 
     if (aff.ranges) {

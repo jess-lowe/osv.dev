@@ -619,11 +619,7 @@ def osv_get_ecosystems():
       return sorted(ecosystems_data.keys(), key=str.lower)
   except Exception as e:
     logging.error('Failed to load ecosystems from schema: %s', e)
-    # Fallback to database query if schema file is missing
-    query = osv.ListedVulnerability.query(
-        projection=[osv.ListedVulnerability.ecosystems], distinct=True)
-    return sorted([vuln.ecosystems[0] for vuln in query if vuln.ecosystems],
-                  key=str.lower)
+    return []
 
 
 @cache.smart_cache(
