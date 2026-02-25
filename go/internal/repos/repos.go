@@ -44,12 +44,14 @@ func CloneToDir(ctx context.Context, repoURL string, dir string, forceUpdate boo
 		if err == nil {
 			// It's a git repo, pull the latest changes.
 			if forceUpdate {
-				cmd := exec.CommandContext(ctx, "git", "pull", "--", repoURL, dir)
+				cmd := exec.CommandContext(ctx, "git", "pull")
+				cmd.Dir = dir
 				cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-				if err := cmd.Run(); err != nil {
-					return nil, fmt.Errorf("failed to pull repo: %w", err)
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					return nil, fmt.Errorf("failed to pull repo: %w\n%s", err, string(output))
 				}
-				logger.Info("Pulled latest changes", slog.String("repo_url", repoURL), slog.String("dir", dir))
+				logger.Info("Pulled latest changes", slog.String("repo_url", repoURL), slog.String("dir", dir), slog.String("output", string(output)))
 
 				// re-open the repo to get the new HEAD
 				return git.PlainOpen(dir)
@@ -81,8 +83,9 @@ func CloneToDir(ctx context.Context, repoURL string, dir string, forceUpdate boo
 	// regular clone
 	cmd := exec.CommandContext(ctx, "git", "clone", "--", repoURL, dir)
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to clone repo: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone repo: %w\n%s", err, string(output))
 	}
 
 	return git.PlainOpen(dir)
@@ -114,8 +117,9 @@ func cloneToDirGitter(ctx context.Context, gitterHost, repoURL, dir string, forc
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, "tar", "-xf", tarPath, "-C", dir)
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to untar repo: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to untar repo: %w\n%s", err, string(output))
 	}
 	// clean up
 	if err := os.RemoveAll(tmpDir); err != nil {
