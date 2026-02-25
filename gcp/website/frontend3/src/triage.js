@@ -12,54 +12,42 @@ document.addEventListener("DOMContentLoaded", () => {
   const sourceConfigMap = {
     // External APIs
     "cve-org": {
-      urlTemplate: "https://cveawg.cve.org/api/cve/{id}",
-      useProxy: true,
+      proxySource: "cve",
     },
     "nvd-api": {
-      urlTemplate: "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={id}",
-      useProxy: true,
+      proxySource: "nvd",
     },
     // Test Instance
     "test-nvd": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.json",
+      proxySource: "test-nvd",
     },
     "test-cve5": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "cve5/{id}.json",
+      proxySource: "test-cve5",
     },
     "test-osv": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "osv-output/{id}.json",
+      proxySource: "test-osv",
     },
     "test-nvd-metrics": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.metrics.json",
+      proxySource: "test-nvd-metrics",
     },
     "test-cve5-metrics": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "cve5/{id}.metrics.json",
+      proxySource: "test-cve5-metrics",
     },
     // Prod Instance
     "prod-nvd": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.json",
+      proxySource: "prod-nvd",
     },
     "prod-cve5": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "cve5/{id}.json",
+      proxySource: "prod-cve5",
     },
     "prod-osv": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "osv-output/{id}.json",
+      proxySource: "prod-osv",
     },
     "prod-nvd-metrics": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.metrics.json",
+      proxySource: "prod-nvd-metrics",
     },
     "prod-cve5-metrics": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "cve5/{id}.metrics.json",
+      proxySource: "prod-cve5-metrics",
     },
     // API
     "api-test": {
@@ -98,32 +86,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const config = sourceConfigMap[sourceKey];
     let url;
 
-    if (config.bucket) {
-      const path = config.pathTemplate.replace("{id}", vulnId);
-      url = `/triage/proxy?bucket=${config.bucket}&path=${encodeURIComponent(path)}`;
-    } else if (config.urlTemplate || sourceKey === 'cve-org') {
-      let targetUrl;
-      if (sourceKey === 'cve-org') {
-        // Construct GitHub raw URL for CVE data
-        // Format: https://raw.githubusercontent.com/CVEProject/cvelistV5/refs/heads/main/cves/<year>/<seq_prefix>xxx/<CVE-ID>.json
-        const match = vulnId.match(/^CVE-(\d{4})-(\d+)$/i);
-        if (match) {
-          const year = match[1];
-          const seq = match[2];
-          const seqPrefix = seq.length > 3 ? seq.slice(0, -3) : '0';
-          targetUrl = `https://raw.githubusercontent.com/CVEProject/cvelistV5/refs/heads/main/cves/${year}/${seqPrefix}xxx/${vulnId.toUpperCase()}.json`;
-        } else {
-          throw new Error("Invalid CVE ID format for GitHub source");
-        }
-      } else {
-        targetUrl = config.urlTemplate.replace("{id}", vulnId);
-      }
-
-      if (config.useProxy || sourceKey === 'cve-org') {
-        url = `/triage/proxy?url=${encodeURIComponent(targetUrl)}`;
-      } else {
-        url = targetUrl;
-      }
+    if (config.proxySource) {
+      url = `/triage/proxy?source=${config.proxySource}&id=${vulnId}`;
+    } else if (config.urlTemplate) {
+      url = config.urlTemplate.replace("{id}", vulnId);
     } else {
         return Promise.reject("Invalid configuration");
     }

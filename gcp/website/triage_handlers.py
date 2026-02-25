@@ -25,45 +25,106 @@ def triage_index():
   return render_template('triage.html')
 
 
+GCS_SOURCE_CONFIG = {
+    'test-nvd': {
+        'bucket': 'osv-test-cve-osv-conversion',
+        'path_template': 'nvd-osv/{id}.json'
+    },
+    'test-cve5': {
+        'bucket': 'osv-test-cve-osv-conversion',
+        'path_template': 'cve5/{id}.json'
+    },
+    'test-osv': {
+        'bucket': 'osv-test-cve-osv-conversion',
+        'path_template': 'osv-output/{id}.json'
+    },
+    'test-nvd-metrics': {
+        'bucket': 'osv-test-cve-osv-conversion',
+        'path_template': 'nvd-osv/{id}.metrics.json'
+    },
+    'test-cve5-metrics': {
+        'bucket': 'osv-test-cve-osv-conversion',
+        'path_template': 'cve5/{id}.metrics.json'
+    },
+    'prod-nvd': {
+        'bucket': 'cve-osv-conversion',
+        'path_template': 'nvd-osv/{id}.json'
+    },
+    'prod-cve5': {
+        'bucket': 'cve-osv-conversion',
+        'path_template': 'cve5/{id}.json'
+    },
+    'prod-osv': {
+        'bucket': 'cve-osv-conversion',
+        'path_template': 'osv-output/{id}.json'
+    },
+    'prod-nvd-metrics': {
+        'bucket': 'cve-osv-conversion',
+        'path_template': 'nvd-osv/{id}.metrics.json'
+    },
+    'prod-cve5-metrics': {
+        'bucket': 'cve-osv-conversion',
+        'path_template': 'cve5/{id}.metrics.json'
+    },
+}
+
+
 @blueprint.route('/triage/proxy')
 def triage_proxy():
   """Proxy to fetch files from GCS buckets or external APIs securely."""
-  bucket_name = request.args.get('bucket')
-  path = request.args.get('path')
-  url = request.args.get('url')
+  source = request.args.get('source')
+  vuln_id = request.args.get('id')
 
-  if url:
-    # Validate external URLs
-    if not (url.startswith('https://cveawg.cve.org/api/cve/') or
-            url.startswith('https://services.nvd.nist.gov/rest/json/cves/2.0') or
-            url.startswith('https://raw.githubusercontent.com/CVEProject/cvelistV5/')):
-      return jsonify({'error': 'Invalid external URL'}), 403
+  if not source or not vuln_id:
+    return jsonify({'error': 'Missing source or id parameters'}), 400
 
-    import requests
+  # Validate CVE ID format
+  import re
+  if not re.match(r'^CVE-\d{4}-\d+$', vuln_id, re.IGNORECASE):
+    return jsonify({'error': 'Invalid ID format'}), 400
+
+  # Handle GCS sources
+  if source in GCS_SOURCE_CONFIG:
+    config = GCS_SOURCE_CONFIG[source]
+    bucket_name = config['bucket']
+    path = config['path_template'].format(id=vuln_id.upper())
+
     try:
-      response = requests.get(url, timeout=10)
-      response.raise_for_status()
-      return response.text, 200, {'Content-Type': 'application/json'}
-    except Exception as e:
-      logging.error('Error fetching from external API: %s', e)
-      return jsonify({'error': 'Error fetching from external API'}), 500
+      bucket = get_storage_client().bucket(bucket_name)
+      blob = bucket.blob(path)
 
-  if not bucket_name or not path:
-    return jsonify({'error': 'Missing bucket, path, or url parameters'}), 400
+      if not blob.exists():
+        return jsonify({'error': 'File not found'}), 404
 
-  if bucket_name not in ALLOWED_BUCKETS:
-    return jsonify({'error': 'Invalid bucket'}), 403
+      content = blob.download_as_text()
+      return content, 200, {'Content-Type': 'application/json'}
 
+    except Exception as e:  # pylint: disable=broad-exception-caught
+      logging.error('Error fetching from GCS (%s): %s', source, e)
+      return jsonify({'error': 'Internal server error'}), 500
+
+  # Handle API sources
+  url = None
+  if source == 'cve':
+    # Construct GitHub raw URL for CVE data
+    match = re.match(r'^CVE-(\d{4})-(\d+)$', vuln_id, re.IGNORECASE)
+    year = match.group(1)
+    seq = match.group(2)
+    seq_prefix = seq[:-3] if len(seq) > 3 else '0'
+    url = (f'https://raw.githubusercontent.com/CVEProject/cvelistV5/'
+           f'refs/heads/main/cves/{year}/{seq_prefix}xxx/'
+           f'{vuln_id.upper()}.json')
+  elif source == 'nvd':
+    url = (f'https://services.nvd.nist.gov/rest/json/cves/2.0'
+           f'?cveId={vuln_id.upper()}')
+  else:
+    return jsonify({'error': 'Invalid source'}), 400
+
+  import requests
   try:
-    bucket = get_storage_client().bucket(bucket_name)
-    blob = bucket.blob(path)
-
-    if not blob.exists():
-      return jsonify({'error': 'File not found'}), 404
-
-    content = blob.download_as_text()
-    return content, 200, {'Content-Type': 'application/json'}
-
-  except Exception as e:  # pylint: disable=broad-exception-caught
-    logging.error('Error fetching from GCS: %s', e)
-    return jsonify({'error': 'Internal server error'}), 500
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    return response.text, 200, {'Content-Type': 'application/json'}
+  except Exception as e:
+    logging.error('Error fetching from external API (%s): %s', source, e)
+    return jsonify({'error': 'Error fetching from external API'}), 500
