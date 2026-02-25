@@ -3,13 +3,14 @@
 
 {% block content %}
 <div class="triage-container">
+  <div class="header-container">
   <h1>CVE Conversion Triager</h1>
 
   <div class="input-section">
     <md-filled-text-field id="vuln-id-input" label="Vulnerability ID" placeholder="e.g. CVE-2023-1234" class="standard-input"></md-filled-text-field>
     <md-filled-button id="load-btn">Load</md-filled-button>
   </div>
-
+</div>
   <div class="triage-grid">
     {% for i in range(1, 4) %}
     <div class="triage-column" id="column-{{ i }}">
