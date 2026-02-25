@@ -10,6 +10,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map selection values to their respective endpoints/paths
   const sourceConfigMap = {
+    // External APIs
+    "cve-org": {
+      urlTemplate: "https://cveawg.cve.org/api/cve/{id}",
+      useProxy: true,
+    },
+    "nvd-api": {
+      urlTemplate: "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={id}",
+      useProxy: true,
+    },
     // Test Instance
     "test-nvd": {
       bucket: "osv-test-cve-osv-conversion",
@@ -61,6 +70,28 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
+  function syntaxHighlight(json) {
+    if (typeof json != 'string') {
+      json = JSON.stringify(json, undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function (match) {
+      var cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'json-key';
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return '<span class="' + cls + '">' + match + '</span>';
+    });
+  }
+
   async function fetchData(sourceKey, vulnId) {
     if (!sourceKey || !vulnId) return null;
 
@@ -70,8 +101,29 @@ document.addEventListener("DOMContentLoaded", () => {
     if (config.bucket) {
       const path = config.pathTemplate.replace("{id}", vulnId);
       url = `/triage/proxy?bucket=${config.bucket}&path=${encodeURIComponent(path)}`;
-    } else if (config.urlTemplate) {
-      url = config.urlTemplate.replace("{id}", vulnId);
+    } else if (config.urlTemplate || sourceKey === 'cve-org') {
+      let targetUrl;
+      if (sourceKey === 'cve-org') {
+        // Construct GitHub raw URL for CVE data
+        // Format: https://raw.githubusercontent.com/CVEProject/cvelistV5/refs/heads/main/cves/<year>/<seq_prefix>xxx/<CVE-ID>.json
+        const match = vulnId.match(/^CVE-(\d{4})-(\d+)$/i);
+        if (match) {
+          const year = match[1];
+          const seq = match[2];
+          const seqPrefix = seq.length > 3 ? seq.slice(0, -3) : '0';
+          targetUrl = `https://raw.githubusercontent.com/CVEProject/cvelistV5/refs/heads/main/cves/${year}/${seqPrefix}xxx/${vulnId.toUpperCase()}.json`;
+        } else {
+          throw new Error("Invalid CVE ID format for GitHub source");
+        }
+      } else {
+        targetUrl = config.urlTemplate.replace("{id}", vulnId);
+      }
+
+      if (config.useProxy || sourceKey === 'cve-org') {
+        url = `/triage/proxy?url=${encodeURIComponent(targetUrl)}`;
+      } else {
+        url = targetUrl;
+      }
     } else {
         return Promise.reject("Invalid configuration");
     }
@@ -108,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fetchData(sourceKey, vulnId)
       .then((data) => {
-        contentPre.textContent = JSON.stringify(data, null, 2);
+        contentPre.innerHTML = syntaxHighlight(data);
       })
       .catch((error) => {
         contentPre.textContent = error.message;
@@ -123,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Also handle Enter key on the input field
-  vulnIdInput.addEventListener("keyup", (e) => {
+  vulnIdInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
           columns.forEach((col) => updateColumn(col));
       }
