@@ -10,47 +10,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map selection values to their respective endpoints/paths
   const sourceConfigMap = {
+    // External APIs
+    "cve-org": {
+      proxySource: "cve",
+    },
+    "nvd-api": {
+      proxySource: "nvd",
+    },
     // Test Instance
     "test-nvd": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.json",
+      proxySource: "test-nvd",
     },
     "test-cve5": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "cve5/{id}.json",
+      proxySource: "test-cve5",
     },
     "test-osv": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "osv-output/{id}.json",
+      proxySource: "test-osv",
     },
     "test-nvd-metrics": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.metrics.json",
+      proxySource: "test-nvd-metrics",
     },
     "test-cve5-metrics": {
-      bucket: "osv-test-cve-osv-conversion",
-      pathTemplate: "cve5/{id}.metrics.json",
+      proxySource: "test-cve5-metrics",
     },
     // Prod Instance
     "prod-nvd": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.json",
+      proxySource: "prod-nvd",
     },
     "prod-cve5": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "cve5/{id}.json",
+      proxySource: "prod-cve5",
     },
     "prod-osv": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "osv-output/{id}.json",
+      proxySource: "prod-osv",
     },
     "prod-nvd-metrics": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "nvd-osv/{id}.metrics.json",
+      proxySource: "prod-nvd-metrics",
     },
     "prod-cve5-metrics": {
-      bucket: "cve-osv-conversion",
-      pathTemplate: "cve5/{id}.metrics.json",
+      proxySource: "prod-cve5-metrics",
     },
     // API
     "api-test": {
@@ -61,15 +58,36 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
+  function syntaxHighlight(json) {
+    if (typeof json != 'string') {
+      json = JSON.stringify(json, undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function (match) {
+      var cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'json-key';
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return '<span class="' + cls + '">' + match + '</span>';
+    });
+  }
+
   async function fetchData(sourceKey, vulnId) {
     if (!sourceKey || !vulnId) return null;
 
     const config = sourceConfigMap[sourceKey];
     let url;
 
-    if (config.bucket) {
-      const path = config.pathTemplate.replace("{id}", vulnId);
-      url = `/triage/proxy?bucket=${config.bucket}&path=${encodeURIComponent(path)}`;
+    if (config.proxySource) {
+      url = `/triage/proxy?source=${config.proxySource}&id=${vulnId}`;
     } else if (config.urlTemplate) {
       url = config.urlTemplate.replace("{id}", vulnId);
     } else {
@@ -108,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fetchData(sourceKey, vulnId)
       .then((data) => {
-        contentPre.textContent = JSON.stringify(data, null, 2);
+        contentPre.innerHTML = syntaxHighlight(data);
       })
       .catch((error) => {
         contentPre.textContent = error.message;
@@ -123,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Also handle Enter key on the input field
-  vulnIdInput.addEventListener("keyup", (e) => {
+  vulnIdInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
           columns.forEach((col) => updateColumn(col));
       }
