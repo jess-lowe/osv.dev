@@ -58,46 +58,56 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   function syntaxHighlight(json) {
     if (typeof json !== 'string') {
       json = JSON.stringify(json, undefined, 2);
     }
-    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function (match) {
-      let cls = 'json-number';
-      if (/^"/.test(match)) {
-        if (/:$/.test(match)) {
-          cls = 'json-key';
-        } else {
-          cls = 'json-string';
+
+    const escapedJson = escapeHtml(json);
+
+    return escapedJson.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+      function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
         }
-      } else if (/true|false/.test(match)) {
-        cls = 'json-boolean';
-      } else if (/null/.test(match)) {
-        cls = 'json-null';
+        return `<span class="${cls}">${match}</span>`;
       }
-      return '<span class="' + cls + '">' + match + '</span>';
-    });
+    );
   }
 
   async function fetchData(sourceKey, vulnId) {
     const config = sourceConfigMap[sourceKey];
     let url;
+    
+    const safeId = encodeURIComponent(vulnId);
 
     if (config.proxySource) {
-      url = `/triage/proxy?source=${config.proxySource}&id=${vulnId}`;
+      url = `/triage/proxy?source=${encodeURIComponent(config.proxySource)}&id=${safeId}`;
     } else if (config.urlTemplate) {
-      url = config.urlTemplate.replace("{id}", vulnId);
+      url = config.urlTemplate.replace("{id}", safeId);
     } else {
-        return Promise.reject(new Error("Invalid configuration"));
+      throw new Error("Invalid configuration");
     }
 
     const response = await fetch(url);
     if (!response.ok) {
-        if (response.status === 404) {
-             throw new Error("Not Found");
-        }
-        throw new Error(`Error: ${response.statusText}`);
+      throw new Error(response.status === 404 ? "Not Found" : `Error: ${response.statusText}`);
     }
     return response.json();
   }
