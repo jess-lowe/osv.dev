@@ -81,8 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchData(sourceKey, vulnId) {
-    if (!sourceKey || !vulnId) return null;
-
     const config = sourceConfigMap[sourceKey];
     let url;
 

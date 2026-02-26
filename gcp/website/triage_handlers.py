@@ -1,15 +1,15 @@
 """Triage handlers."""
 import logging
+import re
+import requests
 
 from flask import Blueprint, request, jsonify, render_template
 from google.cloud import storage
 
 blueprint = Blueprint('triage_handlers', __name__)
 
-ALLOWED_BUCKETS = {'cve-osv-conversion', 'osv-test-cve-osv-conversion'}
-
+_CVE_ID_REGEX = re.compile(r'^CVE-\d{4}-\d+$', re.IGNORECASE)
 _STORAGE_CLIENT = None
-
 
 def get_storage_client():
   """Get storage client."""
@@ -79,8 +79,7 @@ def triage_proxy():
     return jsonify({'error': 'Missing source or id parameters'}), 400
 
   # Validate CVE ID format
-  import re
-  if not re.match(r'^CVE-\d{4}-\d+$', vuln_id, re.IGNORECASE):
+  if not re.match(_CVE_ID_REGEX, vuln_id):
     return jsonify({'error': 'Invalid ID format'}), 400
 
   # Handle GCS sources
@@ -107,7 +106,9 @@ def triage_proxy():
   url = None
   if source == 'cve':
     # Construct GitHub raw URL for CVE data
-    match = re.match(r'^CVE-(\d{4})-(\d+)$', vuln_id, re.IGNORECASE)
+    match = re.match(_CVE_ID_REGEX, vuln_id)
+    if not match:
+      return jsonify({'error': 'Invalid ID format'}), 400
     year = match.group(1)
     seq = match.group(2)
     seq_prefix = seq[:-3] if len(seq) > 3 else '0'
@@ -120,7 +121,6 @@ def triage_proxy():
   else:
     return jsonify({'error': 'Invalid source'}), 400
 
-  import requests
   try:
     response = requests.get(url, timeout=10)
     response.raise_for_status()
