@@ -91,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (config.urlTemplate) {
       url = config.urlTemplate.replace("{id}", vulnId);
     } else {
-        return Promise.reject("Invalid configuration");
+        return Promise.reject(new Error("Invalid configuration"));
     }
 
     const response = await fetch(url);
