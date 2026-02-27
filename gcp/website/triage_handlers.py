@@ -11,6 +11,7 @@ blueprint = Blueprint('triage_handlers', __name__)
 _CVE_ID_REGEX = re.compile(r'^CVE-\d{4}-\d+$', re.IGNORECASE)
 _STORAGE_CLIENT = None
 
+
 def get_storage_client():
   """Get storage client."""
   global _STORAGE_CLIENT  # pylint: disable=global-statement
