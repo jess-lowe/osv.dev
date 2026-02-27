@@ -2,19 +2,20 @@
 import logging
 import re
 import requests
+import utils
 
 from flask import Blueprint, request, jsonify, render_template
 from google.cloud import storage
 
-import utils
-
 blueprint = Blueprint('triage_handlers', __name__)
+
 
 @blueprint.before_request
 def restrict_to_local():
   """Restrict triage handlers to local environment."""
   if utils.is_cloud_run():
     return jsonify({'error': 'This tool is only available locally.'}), 403
+  return None
 
 
 _CVE_ID_REGEX = re.compile(r'^CVE-\d{4}-\d+$', re.IGNORECASE)
