@@ -9,6 +9,7 @@ module.exports = {
   entry: {
     main: './src/index.js',
     linter: './src/linter.js',
+    generate: './src/generate.js',
   },
   output: {
     path: path.resolve(__dirname, '../dist'),
@@ -35,7 +36,7 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: './src/templates/*.html', to: '[name].html' },
+        { from: './src/templates', to: '.', globOptions: { ignore: ['**/base.html', '**/generate.html'] } },
         { from: './img/*', to: 'static/img/[name][ext]' },
       ],
     }),
@@ -49,7 +50,13 @@ module.exports = {
       filename: 'linter.html',
       template: './src/templates/linter/index.html',
       chunks: ['linter'],
-      excludeChunks: ['main'],
+      excludeChunks: ['main', 'generate'],
+    }),
+    new HtmlWebpackPlugin({
+      filename: 'generate.html',
+      template: './src/templates/generate.html',
+      chunks: ['generate'],
+      excludeChunks: ['main', 'linter'],
     }),
     new MiniCssExtractPlugin({
       filename: 'static/[name].[contenthash].css'
