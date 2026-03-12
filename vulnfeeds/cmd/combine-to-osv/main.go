@@ -22,6 +22,7 @@ import (
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -276,9 +277,9 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 				repo := strings.ToLower(r.GetRepo())
 				if _, ok := nvdRepoMap[repo]; !ok {
 					// create a copy to avoid mutating the original
-					affectedCopy := *affected
+					affectedCopy := proto.Clone(affected).(*osvschema.Affected)
 					affectedCopy.Ranges = []*osvschema.Range{r}
-					nvdRepoMap[repo] = &affectedCopy
+					nvdRepoMap[repo] = affectedCopy
 				} else {
 					nvdRepoMap[repo].Ranges = append(nvdRepoMap[repo].Ranges, r)
 				}
@@ -292,9 +293,9 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 			if r.GetRepo() != "" {
 				repo := strings.ToLower(r.GetRepo())
 				if _, ok := cve5RepoMap[repo]; !ok {
-					affectedCopy := *affected
+					affectedCopy := proto.Clone(affected).(*osvschema.Affected)
 					affectedCopy.Ranges = []*osvschema.Range{r}
-					cve5RepoMap[repo] = &affectedCopy
+					cve5RepoMap[repo] = affectedCopy
 				} else {
 					cve5RepoMap[repo].Ranges = append(cve5RepoMap[repo].Ranges, r)
 				}
@@ -344,9 +345,9 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 
 			// We must construct the combined affected entry taking properties like Package, DatabaseSpecific, etc.
 			// Try to preserve as much package info as possible, prioritizing CVE5.
-			newAffected := *cveAffected
+			newAffected := proto.Clone(cveAffected).(*osvschema.Affected)
 			newAffected.Ranges = newAffectedRanges
-			newRepoAffectedMap[repo] = &newAffected
+			newRepoAffectedMap[repo] = newAffected
 		} else {
 			newRepoAffectedMap[repo] = cveAffected
 		}
