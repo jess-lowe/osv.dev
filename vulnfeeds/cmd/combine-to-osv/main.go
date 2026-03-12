@@ -269,22 +269,35 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 		return nvdAffected
 	}
 
-	nvdRepoMap := make(map[string][]*osvschema.Range)
+	nvdRepoMap := make(map[string]*osvschema.Affected)
 	for _, affected := range nvdAffected {
 		for _, r := range affected.GetRanges() {
 			if r.GetRepo() != "" {
 				repo := strings.ToLower(r.GetRepo())
-				nvdRepoMap[repo] = append(nvdRepoMap[repo], r)
+				if _, ok := nvdRepoMap[repo]; !ok {
+					// create a copy to avoid mutating the original
+					affectedCopy := *affected
+					affectedCopy.Ranges = []*osvschema.Range{r}
+					nvdRepoMap[repo] = &affectedCopy
+				} else {
+					nvdRepoMap[repo].Ranges = append(nvdRepoMap[repo].Ranges, r)
+				}
 			}
 		}
 	}
 
-	cve5RepoMap := make(map[string][]*osvschema.Range)
+	cve5RepoMap := make(map[string]*osvschema.Affected)
 	for _, affected := range cve5Affected {
 		for _, r := range affected.GetRanges() {
 			if r.GetRepo() != "" {
 				repo := strings.ToLower(r.GetRepo())
-				cve5RepoMap[repo] = append(cve5RepoMap[repo], r)
+				if _, ok := cve5RepoMap[repo]; !ok {
+					affectedCopy := *affected
+					affectedCopy.Ranges = []*osvschema.Range{r}
+					cve5RepoMap[repo] = &affectedCopy
+				} else {
+					cve5RepoMap[repo].Ranges = append(cve5RepoMap[repo].Ranges, r)
+				}
 			}
 		}
 	}
@@ -292,8 +305,10 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 	newRepoAffectedMap := make(map[string]*osvschema.Affected)
 
 	// Finds ranges with the same repo and merges them into one affected set.
-	for repo, cveRanges := range cve5RepoMap {
-		if nvdRanges, ok := nvdRepoMap[repo]; ok {
+	for repo, cveAffected := range cve5RepoMap {
+		cveRanges := cveAffected.GetRanges()
+		if nvdAffected, ok := nvdRepoMap[repo]; ok {
+			nvdRanges := nvdAffected.GetRanges()
 			var newAffectedRanges []*osvschema.Range
 
 			// Found a match. If NVD has more ranges, use its ranges.
@@ -326,21 +341,20 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 
 			// Remove from map so we know which NVD packages are left.
 			delete(nvdRepoMap, repo)
-			newRepoAffectedMap[repo] = &osvschema.Affected{
-				Ranges: newAffectedRanges,
-			}
+
+			// We must construct the combined affected entry taking properties like Package, DatabaseSpecific, etc.
+			// Try to preserve as much package info as possible, prioritizing CVE5.
+			newAffected := *cveAffected
+			newAffected.Ranges = newAffectedRanges
+			newRepoAffectedMap[repo] = &newAffected
 		} else {
-			newRepoAffectedMap[repo] = &osvschema.Affected{
-				Ranges: cveRanges,
-			}
+			newRepoAffectedMap[repo] = cveAffected
 		}
 	}
 
 	// Add remaining NVD packages that were not in cve5.
-	for repo, nvdRange := range nvdRepoMap {
-		newRepoAffectedMap[repo] = &osvschema.Affected{
-			Ranges: nvdRange,
-		}
+	for repo, nvdAffected := range nvdRepoMap {
+		newRepoAffectedMap[repo] = nvdAffected
 	}
 
 	var combinedAffected []*osvschema.Affected //nolint:prealloc
