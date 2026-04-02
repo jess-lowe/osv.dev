@@ -137,6 +137,10 @@ func TestPickAffectedInformation(t *testing.T) {
 	// Base data for tests
 	cve5Base := []*osvschema.Affected{
 		{
+			Package: &osvschema.Package{
+				Ecosystem: "Go",
+				Name:      "github.com/example/repoA",
+			},
 			Ranges: []*osvschema.Range{
 				{
 					Type: osvschema.Range_GIT,
@@ -152,6 +156,10 @@ func TestPickAffectedInformation(t *testing.T) {
 
 	nvdBase := []*osvschema.Affected{
 		{
+			Package: &osvschema.Package{
+				Ecosystem: "Go",
+				Name:      "github.com/example/repoA",
+			},
 			Ranges: []*osvschema.Range{
 				{
 					Type: osvschema.Range_GIT,
@@ -188,6 +196,10 @@ func TestPickAffectedInformation(t *testing.T) {
 			// cve5's "1.0.1" fixed version should be kept
 			wantAffected: []*osvschema.Affected{
 				{
+					Package: &osvschema.Package{
+						Ecosystem: "Go",
+						Name:      "github.com/example/repoA",
+					},
 					Ranges: []*osvschema.Range{
 						{
 							Type:   osvschema.Range_GIT,
@@ -214,6 +226,10 @@ func TestPickAffectedInformation(t *testing.T) {
 			name: "NVD provides missing introduced version",
 			cve5Affected: []*osvschema.Affected{
 				{
+					Package: &osvschema.Package{
+						Ecosystem: "Go",
+						Name:      "github.com/example/repoA",
+					},
 					Ranges: []*osvschema.Range{
 						{
 							Type: osvschema.Range_GIT,
@@ -241,6 +257,10 @@ func TestPickAffectedInformation(t *testing.T) {
 			},
 			wantAffected: []*osvschema.Affected{
 				{
+					Package: &osvschema.Package{
+						Ecosystem: "Go",
+						Name:      "github.com/example/repoA",
+					},
 					Ranges: []*osvschema.Range{
 						{
 							Type: osvschema.Range_GIT,
@@ -258,6 +278,10 @@ func TestPickAffectedInformation(t *testing.T) {
 			name: "NVD provides missing fixed version",
 			cve5Affected: []*osvschema.Affected{
 				{
+					Package: &osvschema.Package{
+						Ecosystem: "Go",
+						Name:      "github.com/example/repoA",
+					},
 					Ranges: []*osvschema.Range{
 						{
 							Type: osvschema.Range_GIT,
@@ -285,6 +309,10 @@ func TestPickAffectedInformation(t *testing.T) {
 			},
 			wantAffected: []*osvschema.Affected{
 				{
+					Package: &osvschema.Package{
+						Ecosystem: "Go",
+						Name:      "github.com/example/repoA",
+					},
 					Ranges: []*osvschema.Range{
 						{
 							Type: osvschema.Range_GIT,
