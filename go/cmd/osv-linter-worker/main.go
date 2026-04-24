@@ -11,10 +11,10 @@
 //
 // Options:
 //
-//	work_dir: Working directory
-//	local_data: Path to local all.zip or directory containing OSV data
-//	linter_binary: Path to osv-linter binary
-//	dry_run: Dry run mode (no GCS upload or Datastore writes)
+//	work-dir: Working directory
+//	local-data: Path to local all.zip or directory containing OSV data
+//	linter-bin: Path to osv-linter binary
+//	dry-run: Dry run mode (no GCS upload or Datastore writes)
 //
 // Environment variables:
 //
