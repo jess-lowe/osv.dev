@@ -10,6 +10,7 @@ module.exports = {
     main: './src/index.js',
     linter: './src/linter.js',
     triage: './src/triage.js',
+    generate: './src/generate.js',
   },
   output: {
     path: path.resolve(__dirname, '../dist'),
@@ -36,7 +37,7 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: './src/templates/*.html', to: '[name].html', globOptions: { ignore: ['**/base.html', '**/triage.html'] } },
+        { from: './src/templates/*.html', to: '[name].html', globOptions: { ignore: ['**/base.html', '**/triage.html', '**/generate.html'] } },
         { from: './img/*', to: 'static/img/[name][ext]' },
       ],
     }),
@@ -44,19 +45,25 @@ module.exports = {
       filename: 'base.html',
       template: './src/base.html',
       chunks: ['main'],
-      excludeChunks: ['linter'],
+      excludeChunks: ['linter', 'generate', 'triage'],
     }),
     new HtmlWebpackPlugin({
       filename: 'linter.html',
       template: './src/templates/linter/index.html',
       chunks: ['linter'],
-      excludeChunks: ['main'],
+      excludeChunks: ['main', 'generate', 'triage'],
+    }),
+    new HtmlWebpackPlugin({
+      filename: 'generate.html',
+      template: './src/templates/generate.html',
+      chunks: ['generate'],
+      excludeChunks: ['main', 'linter', 'triage'],
     }),
     new HtmlWebpackPlugin({
       filename: 'triage.html',
       template: './src/templates/triage.html',
       chunks: ['triage'],
-      excludeChunks: ['main', 'linter'],
+      excludeChunks: ['main', 'linter', 'generate'],
     }),
     new MiniCssExtractPlugin({
       filename: 'static/[name].[contenthash].css'
