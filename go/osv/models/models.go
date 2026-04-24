@@ -16,6 +16,9 @@
 package models
 
 import (
+	"time"
+
+	ds "cloud.google.com/go/datastore"
 	"github.com/google/osv.dev/go/internal/database/datastore"
 )
 
@@ -55,7 +58,7 @@ const (
 )
 
 type ImportFinding struct {
-	Key         *datastore.Key   `datastore:"__key__"`
+	Key         *ds.Key          `datastore:"__key__"`
 	BugID       string           `datastore:"bug_id"`
 	Source      string           `datastore:"source"`
 	Findings    []ImportFindings `datastore:"findings"`
@@ -63,29 +66,4 @@ type ImportFinding struct {
 	LastAttempt time.Time        `datastore:"last_attempt"`
 }
 
-type SourceRepository struct {
-	Key                  *datastore.Key `datastore:"__key__"`
-	Name                 string         `datastore:"name"`
-	Type                 int            `datastore:"type"`
-	Bucket               string         `datastore:"bucket"`
-	DBPrefix             []string       `datastore:"db_prefix"`
-	Link                 string         `datastore:"link"`
-	HumanLink            string         `datastore:"human_link"`
-	IgnoreGit            bool           `datastore:"ignore_git"`
-	Editable             bool           `datastore:"editable"`
-	LastSynced           string         `datastore:"last_synced_hash"`
-	Extension            string         `datastore:"extension"`
-	IgnorePatterns       []string       `datastore:"ignore_patterns"`
-	StrictValidation     bool           `datastore:"strict_validation"`
-	DirectoryPath        string         `datastore:"directory_path"`
-	RepoBranch           string         `datastore:"repo_branch"`
-	RepoURL              string         `datastore:"repo_url"`
-	RepoUsername         string         `datastore:"repo_username"`
-	LastUpdateDate       time.Time      `datastore:"last_update_date"`
-	RestAPIURL           string         `datastore:"rest_api_url"`
-	ConsiderAllBranches  bool           `datastore:"consider_all_branches"`
-	KeyPath              string         `datastore:"key_path"`
-	DetectCherrypicks    bool           `datastore:"detect_cherrypicks"`
-	VersionsFromRepo     bool           `datastore:"versions_from_repo"`
-	IgnoreLastImportTime bool           `datastore:"ignore_last_import_time"`
-}
+type SourceRepository = datastore.SourceRepository

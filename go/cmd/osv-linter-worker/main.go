@@ -70,19 +70,21 @@ var errorCodeMapping = map[string]models.ImportFindings{
 	"PKG:003": models.ImportFindingsInvalidPURL,
 }
 
+var (
+	workDir      = flag.String("work-dir", "tmp", "Working directory")
+	localData    = flag.String("local-data", "", "Path to local all.zip or directory containing OSV data")
+	linterBinary = flag.String("linter-bin", "osv-linter", "Path to osv-linter binary")
+	dryRun       = flag.Bool("dry-run", true, "Dry run mode (no GCS upload or Datastore writes)")
+)
+
 func main() {
+	flag.Parse()
 	if err := run(); err != nil {
 		logger.Fatal("error running linter worker", slog.Any("err", err))
 	}
 }
 
 func run() error {
-	workDir := flag.String("work_dir", "/tmp", "Working directory")
-	localData := flag.String("local_data", "", "Path to local all.zip or directory containing OSV data")
-	linterBinary := flag.String("linter_binary", "osv-linter", "Path to osv-linter binary")
-	dryRun := flag.Bool("dry_run", true, "Dry run mode (no GCS upload or Datastore writes)")
-	flag.Parse()
-
 	ctx := context.Background()
 	dsClient, err := datastore.NewClient(ctx, gcpProject)
 	if err != nil {
@@ -294,6 +296,7 @@ func processLinterResult(ctx context.Context, dsClient *datastore.Client, output
 			logger.Error("Failed to upload results to bucket", slog.Any("err", err))
 			return nil
 		}
+
 		return nil
 	})
 
@@ -582,6 +585,7 @@ func uploadRecordToBucket(ctx context.Context, results map[string][]map[string]a
 				}
 				logger.Info("Uploaded results for "+task.source, slog.String("source", task.source))
 			}
+
 			return nil
 		})
 	}
@@ -634,6 +638,7 @@ func uploadRecordToBucket(ctx context.Context, results map[string][]map[string]a
 					logger.Info("Deleted old result", slog.String("name", name))
 				}
 			}
+
 			return nil
 		})
 	}
