@@ -1,19 +1,19 @@
 module osv.dev/bindings/go
 
-go 1.25.5
+go 1.26.2
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/ossf/osv-schema/bindings/go v0.0.0-20251202081329-61505a9c2319
-	golang.org/x/sync v0.18.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20251124214823-79d6a2a48846
-	google.golang.org/grpc v1.77.0
+	github.com/ossf/osv-schema/bindings/go v0.0.0-20260331231022-2a6a0b9b0ccd
+	golang.org/x/sync v0.20.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+	google.golang.org/grpc v1.80.0
 )
 
 require (
-	golang.org/x/net v0.46.1-0.20251013234738-63d1a5100f82 // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
-	google.golang.org/protobuf v1.36.10
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401001100-f93e5f3e9f0f // indirect
+	google.golang.org/protobuf v1.36.11
 )

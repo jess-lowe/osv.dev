@@ -29,6 +29,11 @@ from osv import importfinding_pb2
 # pylint: disable=relative-beyond-top-level
 from . import bug
 from . import ecosystems
+from .ecosystems.ecosystems_base import (
+    coarse_version_from_ints,
+    MAX_COARSE_PART,
+    MAX_COARSE_EPOCH,
+)
 from . import gcs
 from . import pubsub
 from . import purl_helpers
@@ -36,9 +41,13 @@ from . import semver_index
 from . import sources
 from . import vulnerability_pb2
 
-SCHEMA_VERSION = '1.7.3'
+SCHEMA_VERSION = '1.7.5'
 
 _MAX_GIT_VERSIONS_TO_INDEX = 5000
+
+MIN_COARSE_VERSION = coarse_version_from_ints((0,), 0)
+MAX_COARSE_VERSION = coarse_version_from_ints((MAX_COARSE_PART + 1,),
+                                              MAX_COARSE_EPOCH + 1)
 
 _EVENT_ORDER = {
     'introduced': 0,
@@ -72,7 +81,7 @@ def _check_valid_event_type(prop, value):
     raise ValueError('Invalid event type: ' + value)
 
 
-def utcnow():
+def utcnow() -> datetime.datetime:
   """For mocking."""
   return datetime.datetime.now(datetime.UTC)
 
@@ -913,7 +922,7 @@ def _tokenize(value):
   # Deconstructs the id given into parts by retrieving parts that are
   # alphanumeric.
   # This addresses special cases like SUSE that include ':' in their id suffix
-  tokens = {token for token in re.split(r'\W+', value_lower) if token}
+  tokens = {token for token in re.split(r'[^a-zA-Z0-9]+', value_lower) if token}
   tokens.add(value_lower)
 
   # Add subsection combinations from id (split at '-') in the search indices
@@ -938,7 +947,7 @@ class Vulnerability(ndb.Model):
   """A Vulnerability entry.
   
   Contains a minimal amount of information of an OSV record, including the
-  overall modified date, an some raw fields that are  overwritten by our
+  overall modified date, an some raw fields that are overwritten by our
   enrichment.
   
   The entity's key/id is ID in OSV.
@@ -951,7 +960,6 @@ class Vulnerability(ndb.Model):
   # When this record was truly last modified (including e.g. aliases/upstream).
   modified: datetime.datetime = ndb.DateTimeProperty(tzinfo=datetime.UTC)
   # Whether this record has been withdrawn
-  # TODO(michaelkedar): I don't think this is necessary
   is_withdrawn: bool = ndb.BooleanProperty()
 
   # Raw fields from the original source.
@@ -963,6 +971,13 @@ class Vulnerability(ndb.Model):
   related_raw: list[str] = ndb.StringProperty(repeated=True)
   # The reported upstream IDs.
   upstream_raw: list[str] = ndb.StringProperty(repeated=True)
+
+
+# --- JobData ---
+
+
+class JobData(ndb.Expando):
+  """Job data."""
 
 
 # --- Affected versions for matching ---
@@ -999,6 +1014,13 @@ class AffectedVersions(ndb.Model):
   events: list[AffectedEvent] = ndb.LocalStructuredProperty(
       AffectedEvent, repeated=True)
 
+  # Coarse, string-comparable version bounds
+  # for pre-filtering affected versions.
+  # minimum: 00:00000000.00000000.00000000
+  # maximum: 99:99999999.99999999.99999999
+  coarse_min: str = ndb.StringProperty()
+  coarse_max: str = ndb.StringProperty()
+
   def sort_key(self):
     """Key function for comparison and deduplication."""
     return (self.vuln_id, self.ecosystem, self.name, tuple(self.versions),
@@ -1032,6 +1054,11 @@ class ListedVulnerability(ndb.Model):
   # Strings this matches when searching.
   search_indices: list[str] = ndb.StringProperty(repeated=True)
 
+  # The maximum number of search indices and autocomplete tags to store (each).
+  # Datastore has a limit of 20000 indexed properties + composite indexes.
+  # We use 2000 to be conservative.
+  _MAX_INDICES = 2000
+
   @classmethod
   def from_vulnerability(
       cls: Self, vulnerability: vulnerability_pb2.Vulnerability) -> Self:
@@ -1051,17 +1078,13 @@ class ListedVulnerability(ndb.Model):
 
     search_indices = set()
     search_indices.update(_tokenize(vulnerability.id))
+    pkg_search_indices = set()
+    repo_search_indices = set()
     autocomplete_tags = {vulnerability.id.lower()}
-
-    for alias in vulnerability.aliases:
-      search_indices.update(_tokenize(alias))
-    for upstream in vulnerability.upstream:
-      search_indices.update(_tokenize(upstream))
-    # related intentionally omitted
 
     for affected in vulnerability.affected:
       if affected.package.name:
-        search_indices.update(_tokenize(affected.package.name))
+        pkg_search_indices.add(affected.package.name.lower())
         autocomplete_tags.add(affected.package.name.lower())
         all_packages.add(affected.package.ecosystem + '/' +
                          affected.package.name)
@@ -1073,32 +1096,81 @@ class ListedVulnerability(ndb.Model):
       for r in affected.ranges:
         if r.type == vulnerability_pb2.Range.Type.GIT:
           all_ecosystems.add('GIT')
-          search_indices.add(r.repo)
+          repo_search_indices.add(r.repo.lower())
           autocomplete_tags.add(r.repo.lower())
-          split = r.repo.split('//')
+
+          split = r.repo.lower().split('//')
           if len(split) >= 2:
             no_http = split[1]
             all_packages.add(no_http)
-            search_indices.add(no_http)
-            # Add the path components exluding the domain name
-            search_indices.update(no_http.split('/')[1:])
           else:
-            all_packages.add(r.repo)
+            all_packages.add(r.repo.lower())
 
         if any(e.fixed or e.limit for e in r.events):
           is_fixed = True
 
+    # prioritize exact matches for repo and package names
+    # before adding tokenized versions
+    search_indices.update(repo_search_indices)
+    search_indices.update(pkg_search_indices)
+    for repo in repo_search_indices:
+      if len(search_indices) >= cls._MAX_INDICES:
+        break
+      split = repo.split('//')
+      if len(split) >= 2:
+        no_http = split[1]
+        search_indices.add(no_http)
+        if len(search_indices) >= cls._MAX_INDICES:
+          break
+        # Add the path components exluding the domain name
+        to_add = no_http.split('/')[1:]
+        for t in to_add:
+          if len(search_indices) >= cls._MAX_INDICES:
+            break
+          search_indices.add(t)
+
+    for pkg in pkg_search_indices:
+      if len(search_indices) >= cls._MAX_INDICES:
+        break
+      to_add = _tokenize(pkg)
+      for t in to_add:
+        if len(search_indices) >= cls._MAX_INDICES:
+          break
+        search_indices.add(t)
+
     for eco in all_ecosystems:
       # TODO(michaelkedar): Seems like a noisy/useless search index?
-      search_indices.update(_tokenize(eco))
+      to_add = _tokenize(eco)
+      for t in to_add:
+        if len(search_indices) >= cls._MAX_INDICES:
+          break
+        search_indices.add(t)
       if (e := ecosystems.remove_variants(eco)) is not None:
-        search_indices.update(_tokenize(e))
+        to_add = _tokenize(e)
+        for t in to_add:
+          if len(search_indices) >= cls._MAX_INDICES:
+            break
+          search_indices.add(t)
+
+    for alias in vulnerability.aliases:
+      to_add = _tokenize(alias)
+      for t in to_add:
+        if len(search_indices) >= cls._MAX_INDICES:
+          break
+        search_indices.add(t)
+    for upstream in vulnerability.upstream:
+      to_add = _tokenize(upstream)
+      for t in to_add:
+        if len(search_indices) >= cls._MAX_INDICES:
+          break
+        search_indices.add(t)
+    # related intentionally omitted
 
     ecos = sorted({ecosystems.normalize(e) for e in all_ecosystems})
     pkgs = sorted(all_packages)
     sevs = [Severity(type=t, score=s) for t, s in sorted(severities)]
-    search_indices = sorted(search_indices)
-    autocomplete_tags = sorted(autocomplete_tags)
+    search_indices = sorted(search_indices)[:cls._MAX_INDICES]
+    autocomplete_tags = sorted(autocomplete_tags)[:cls._MAX_INDICES]
 
     return cls(
         id=vulnerability.id,
@@ -1124,8 +1196,6 @@ def populate_entities_from_bug(entity: Bug):
       include_source=True, include_alias=True, include_upstream=True)
 
   def transaction():
-    to_put = []
-    to_delete = []
     vuln = Vulnerability.get_by_id(entity.db_id)
     if vuln is None:
       vuln = Vulnerability(id=entity.db_id)
@@ -1137,23 +1207,7 @@ def populate_entities_from_bug(entity: Bug):
       vuln.alias_raw = entity.aliases
       vuln.related_raw = entity.related
       vuln.upstream_raw = entity.upstream_raw
-      to_put.append(vuln)
-
-    old_affected = AffectedVersions.query(
-        AffectedVersions.vuln_id == entity.db_id).fetch()
-    if vuln.is_withdrawn:
-      # We do not want the vuln to be searchable if it's been withdrawn.
-      to_delete.append(ndb.Key(ListedVulnerability, vuln_pb.id))
-      to_delete.extend(av.key for av in old_affected)
-    else:
-      to_put.append(ListedVulnerability.from_vulnerability(vuln_pb))
-      new_affected = affected_from_bug(entity)
-      added, removed = diff_affected_versions(old_affected, new_affected)
-      to_put.extend(added)
-      to_delete.extend(r.key for r in removed)
-
-    ndb.put_multi(to_put)
-    ndb.delete_multi(to_delete)
+    put_entities(vuln, vuln_pb)
 
   ndb.transaction(transaction)
   try:
@@ -1165,91 +1219,186 @@ def populate_entities_from_bug(entity: Bug):
     pubsub.publish_failure(data, type='gcs_retry')
 
 
-def affected_from_bug(entity: Bug) -> list[AffectedVersions]:
-  """Compute the AffectedVersions from a Bug entity."""
+def put_entities(ds_vuln: Vulnerability,
+                 vuln_pb: vulnerability_pb2.Vulnerability):
+  """Puts entities (Vulnerability, ListedVulnerability, AffectedVersions) from
+  a given Vulnerability entity and proto into Datastore.
+
+  Does not write to GCS."""
+  to_put = [ds_vuln]
+  to_delete = []
+  old_affected = AffectedVersions.query(
+      AffectedVersions.vuln_id == vuln_pb.id).fetch()
+  if ds_vuln.is_withdrawn:
+    to_delete.append(ndb.Key(ListedVulnerability, vuln_pb.id))
+    to_delete.extend(av.key for av in old_affected)
+  else:
+    to_put.append(ListedVulnerability.from_vulnerability(vuln_pb))
+    new_affected = affected_from_proto(vuln_pb)
+    added, removed = diff_affected_versions(old_affected, new_affected)
+    to_put.extend(added)
+    to_delete.extend(r.key for r in removed)
+
+  ndb.put_multi(to_put)
+  ndb.delete_multi(to_delete)
+
+
+def _get_coarse_min_max(events: list[AffectedEvent],
+                        e_helper: ecosystems.OrderedEcosystem,
+                        db_id: str) -> tuple[str, str]:
+  """Get coarse min and max from sorted events."""
+  coarse_min = MIN_COARSE_VERSION
+  coarse_max = MAX_COARSE_VERSION
+  try:
+    # Find the lowest introduced event for coarse min
+    # (in case, for some reason, the first event is not introduced)
+    for e in events:
+      if e.type == 'introduced':
+        coarse_min = e_helper.coarse_version(e.value)
+        # Only if we found an introduced version, update coarse_max
+        # And only if the range is bounded.
+        last = events[-1]
+        if last.type != 'introduced':
+          coarse_max = e_helper.coarse_version(last.value)
+        break
+  except NotImplementedError:
+    # Coarse versioning not yet implemented for this ecosystem.
+    pass
+  except ValueError:
+    logging.warning('Invalid version in %s %s', db_id, events)
+    coarse_min = MIN_COARSE_VERSION
+    coarse_max = MAX_COARSE_VERSION
+
+  return coarse_min, coarse_max
+
+
+def _affected_versions_from_affected_proto(
+    affected: vulnerability_pb2.Affected, db_id: str) -> list[AffectedVersions]:
+  """Compute AffectedVersions for a single affected package."""
   affected_versions = []
-  for affected in entity.affected_packages:
-    pkg_ecosystem = affected.package.ecosystem
-    # Make sure we capture all possible ecosystem variants for matching.
-    # e.g. {'Ubuntu:22.04:LTS', 'Ubuntu:22.04', 'Ubuntu'}
-    all_pkg_ecosystems = {pkg_ecosystem, ecosystems.normalize(pkg_ecosystem)}
-    if (e := ecosystems.remove_variants(pkg_ecosystem)) is not None:
-      all_pkg_ecosystems.add(e)
+  pkg_ecosystem = affected.package.ecosystem
+  # Make sure we capture all possible ecosystem variants for matching.
+  # e.g. {'Ubuntu:22.04:LTS', 'Ubuntu:22.04', 'Ubuntu'}
+  all_pkg_ecosystems = {pkg_ecosystem, ecosystems.normalize(pkg_ecosystem)}
+  if (e := ecosystems.remove_variants(pkg_ecosystem)) is not None:
+    all_pkg_ecosystems.add(e)
 
-    pkg_name = ecosystems.maybe_normalize_package_names(affected.package.name,
-                                                        pkg_ecosystem)
+  pkg_name = ecosystems.maybe_normalize_package_names(affected.package.name,
+                                                      pkg_ecosystem)
 
-    # Ecosystem helper for sorting the events.
-    e_helper = ecosystems.get(pkg_ecosystem)
-    # TODO(michaelkedar): I am matching the current behaviour of the API,
-    # where GIT tags match to the first git repo in the ranges list, even if
-    # there are non-git ranges or multiple git repos in a range.
-    repo_url = ''
-    pkg_has_affected = False
-    for r in affected.ranges:
-      if r.type == 'GIT':
-        if not repo_url:
-          repo_url = r.repo_url
-        continue
-      if r.type not in ('SEMVER', 'ECOSYSTEM'):
-        logging.warning('Unknown range type "%s" in %s', r.type, entity.db_id)
-        continue
-      events = r.events
-      if not events:
-        continue
-      pkg_has_affected = True
-      if e_helper is not None:
-        # If we have an ecosystem helper sort the events to help with querying.
-        events.sort(key=lambda e, sort_key=e_helper.sort_key:
-                    (sort_key(e.value), _EVENT_ORDER.get(e.type, -1)))
-      # If we don't have an ecosystem helper, assume the events are in order.
-      for e in all_pkg_ecosystems:
-        affected_versions.append(
-            AffectedVersions(
-                vuln_id=entity.db_id,
-                ecosystem=e,
-                name=pkg_name,
-                events=events,
-            ))
+  # Ecosystem helper for sorting the events.
+  e_helper = ecosystems.get(pkg_ecosystem)
+  # TODO(michaelkedar): I am matching the current behaviour of the API,
+  # where GIT tags match to the first git repo in the ranges list, even if
+  # there are non-git ranges or multiple git repos in a range.
+  repo_url = ''
+  pkg_has_affected = False
+  for r in affected.ranges:
+    if r.type == vulnerability_pb2.Range.Type.GIT:
+      if not repo_url:
+        repo_url = r.repo
+      continue
+    if r.type not in (vulnerability_pb2.Range.Type.SEMVER,
+                      vulnerability_pb2.Range.Type.ECOSYSTEM):
+      logging.warning('Unknown range type "%d" in %s', r.type, db_id)
+      continue
+    if not r.events:
+      continue
+    events = []
+    for e in r.events:
+      if e.introduced:
+        events.append(AffectedEvent(type='introduced', value=e.introduced))
+      elif e.fixed:
+        events.append(AffectedEvent(type='fixed', value=e.fixed))
+      elif e.limit:
+        events.append(AffectedEvent(type='limit', value=e.limit))
+      elif e.last_affected:
+        events.append(
+            AffectedEvent(type='last_affected', value=e.last_affected))
+    pkg_has_affected = True
+    coarse_min = MIN_COARSE_VERSION
+    coarse_max = MAX_COARSE_VERSION
+    if e_helper is not None:
+      # If we have an ecosystem helper sort the events to help with querying.
+      events.sort(key=lambda e, sort_key=e_helper.sort_key:
+                  (sort_key(e.value), _EVENT_ORDER.get(e.type, -1)))
+      coarse_min, coarse_max = _get_coarse_min_max(events, e_helper, db_id)
 
-    # Add the enumerated versions
-    # We need at least a package name to perform matching.
-    if pkg_name and affected.versions:
-      pkg_has_affected = True
-      for e in all_pkg_ecosystems:
-        affected_versions.append(
-            AffectedVersions(
-                vuln_id=entity.db_id,
-                ecosystem=e,
-                name=pkg_name,
-                versions=affected.versions,
-            ))
-    if pkg_name and not pkg_has_affected:
-      # We have a package that does not have any affected ranges or versions,
-      # which doesn't really make sense.
-      # Add an empty AffectedVersions entry so that this vuln is returned when
-      # querying the API with no version specified.
-      logging.warning('Vuln has empty affected ranges and versions: %s, %s/%s',
-                      entity.db_id, pkg_ecosystem, pkg_name)
-      for e in all_pkg_ecosystems:
-        affected_versions.append(
-            AffectedVersions(
-                vuln_id=entity.db_id,
-                ecosystem=e,
-                name=pkg_name,
-            ))
-
-    if repo_url:
-      # If we have a repository, always add a GIT entry.
-      # Even if affected.versions is empty, we still want to return this vuln
-      # for the API queries with no versions specified.
+    # If we don't have an ecosystem helper, assume the events are in order.
+    for e in all_pkg_ecosystems:
       affected_versions.append(
           AffectedVersions(
-              vuln_id=entity.db_id,
-              ecosystem='GIT',
-              name=normalize_repo_package(repo_url),
-              versions=affected.versions,
+              vuln_id=db_id,
+              ecosystem=e,
+              name=pkg_name,
+              coarse_min=coarse_min,
+              coarse_max=coarse_max,
+              events=events,
           ))
+
+  # Add the enumerated versions
+  # We need at least a package name to perform matching.
+  if pkg_name and affected.versions:
+    pkg_has_affected = True
+    coarse_min = MIN_COARSE_VERSION
+    coarse_max = MAX_COARSE_VERSION
+    if e_helper is not None:
+      try:
+        all_coarse = [e_helper.coarse_version(v) for v in affected.versions]
+        coarse_min = min(all_coarse)
+        coarse_max = max(all_coarse)
+      except NotImplementedError:
+        # Coarse versioning not yet implemented for this ecosystem.
+        pass
+      except ValueError:
+        logging.warning('Invalid version in %s', db_id)
+    for e in all_pkg_ecosystems:
+      affected_versions.append(
+          AffectedVersions(
+              vuln_id=db_id,
+              ecosystem=e,
+              name=pkg_name,
+              versions=list(affected.versions),
+              coarse_min=coarse_min,
+              coarse_max=coarse_max,
+          ))
+  if pkg_name and not pkg_has_affected:
+    # We have a package that does not have any affected ranges or versions,
+    # which doesn't really make sense.
+    # Add an empty AffectedVersions entry so that this vuln is returned when
+    # querying the API with no version specified.
+    logging.warning('Vuln has empty affected ranges and versions: %s, %s/%s',
+                    db_id, pkg_ecosystem, pkg_name)
+    for e in all_pkg_ecosystems:
+      affected_versions.append(
+          AffectedVersions(
+              vuln_id=db_id,
+              ecosystem=e,
+              name=pkg_name,
+          ))
+
+  if repo_url:
+    # If we have a repository, always add a GIT entry.
+    # Even if affected.versions is empty, we still want to return this vuln
+    # for the API queries with no versions specified.
+    affected_versions.append(
+        AffectedVersions(
+            vuln_id=db_id,
+            ecosystem='GIT',
+            name=normalize_repo_package(repo_url),
+            versions=list(affected.versions),
+        ))
+
+  return affected_versions
+
+
+def affected_from_proto(
+    vuln_pb: vulnerability_pb2.Vulnerability) -> list[AffectedVersions]:
+  """Compute the AffectedVersions from a Vulnerability proto."""
+  affected_versions = []
+  for affected in vuln_pb.affected:
+    affected_versions.extend(
+        _affected_versions_from_affected_proto(affected, vuln_pb.id))
 
   # Deduplicate and sort the affected_versions
   unique_affected_dict = {av.sort_key(): av for av in affected_versions}
@@ -1404,6 +1553,8 @@ class SourceRepository(ndb.Model):
   versions_from_repo: bool = ndb.BooleanProperty(default=True)
   # Ignore last import time once (SourceRepositoryType.BUCKET).
   ignore_last_import_time: bool = ndb.BooleanProperty(default=False)
+  # Ignore deletion threshold (SourceRepositoryType.BUCKET and REST_ENDPOINT).
+  ignore_deletion_threshold: bool = ndb.BooleanProperty(default=False)
   # HTTP link prefix to individual OSV source records.
   link: str = ndb.StringProperty()
   # HTTP link prefix to individual vulnerability records for humans.
@@ -1464,6 +1615,15 @@ class UpstreamGroup(ndb.Model):
   upstream_hierarchy: str = ndb.JsonProperty()
   # Date when group was last modified
   last_modified: datetime.datetime = ndb.DateTimeProperty(tzinfo=datetime.UTC)
+
+
+class RelatedGroup(ndb.Model):
+  """Related group for storing related ids of a Vulnerability"""
+  # Key is Vuln ID
+  # List of related ids
+  related_ids: list[str] = ndb.StringProperty(repeated=True)
+  # Date when group was last modified
+  modified: datetime.datetime = ndb.DateTimeProperty(tzinfo=datetime.UTC)
 
 
 # --- ImportFinding ---

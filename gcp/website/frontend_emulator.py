@@ -15,14 +15,15 @@
 import os
 import json
 import yaml
-from google.protobuf import json_format
 from osv import tests
 from osv import sources
 from osv import vulnerability_pb2
 from google.cloud import ndb
 import osv
 import datetime
-from gcp.workers.alias import upstream_computation, alias_computation
+
+import emulator_aliases
+import emulator_upstream
 
 if __name__ == '__main__':
   # The datastore emulator needs to be started before main is imported
@@ -90,9 +91,9 @@ if __name__ == '__main__':
         if not vuln_id:
           return None
 
-        vulnerability = vulnerability_pb2.Vulnerability()
         try:
-          json_format.ParseDict(data, vulnerability, ignore_unknown_fields=True)
+          vulnerability = sources.parse_vulnerability_from_dict(
+              data, strict=False)
         except Exception as error:
           print(f'[emulator] Failed to convert entry in {path}: {error}')
           return None
@@ -116,8 +117,8 @@ if __name__ == '__main__':
             bug.put()
 
         # Compute upstream/alias groups based on loaded bugs.
-        upstream_computation.main()
-        alias_computation.main()
+        emulator_aliases.run()
+        emulator_upstream.run()
 
         for b in osv.Bug.query():
           b.put()

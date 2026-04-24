@@ -11,12 +11,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"slices"
-
 	"cloud.google.com/go/storage"
-	"github.com/google/osv/vulnfeeds/cves"
+	"github.com/google/osv/vulnfeeds/conversion"
+	"github.com/google/osv/vulnfeeds/models"
 	"github.com/google/osv/vulnfeeds/upload"
 	"github.com/google/osv/vulnfeeds/utility/logger"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
@@ -32,6 +32,7 @@ const (
 
 func main() {
 	logger.InitGlobalLogger()
+	defer logger.Close()
 
 	cve5Path := flag.String("cve5-path", defaultCVE5Path, "Path to CVE5 OSV files")
 	nvdPath := flag.String("nvd-path", defaultNVDOSVPath, "Path to NVD OSV files")
@@ -138,8 +139,8 @@ func listBucketObjects(bucketName string, prefix string) ([]string, error) {
 // The function returns a map of CVE IDs to their corresponding Vulnerability objects.
 // Files that are not ".json" files, directories, or files ending in ".metrics.json" are skipped.
 // The function will log warnings for files that fail to open or decode, and will terminate if it fails to walk the directory.
-func loadOSV(osvPath string) map[cves.CVEID]*osvschema.Vulnerability {
-	allVulns := make(map[cves.CVEID]*osvschema.Vulnerability)
+func loadOSV(osvPath string) map[models.CVEID]*osvschema.Vulnerability {
+	allVulns := make(map[models.CVEID]*osvschema.Vulnerability)
 	logger.Info("Loading OSV records", slog.String("path", osvPath))
 	err := filepath.WalkDir(osvPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -161,7 +162,7 @@ func loadOSV(osvPath string) map[cves.CVEID]*osvschema.Vulnerability {
 			logger.Error("Failed to decode, skipping", slog.String("file", path), slog.Any("err", decodeErr))
 			return nil
 		}
-		allVulns[cves.CVEID(vuln.GetId())] = &vuln
+		allVulns[models.CVEID(vuln.GetId())] = &vuln
 
 		return nil
 	})
@@ -174,8 +175,8 @@ func loadOSV(osvPath string) map[cves.CVEID]*osvschema.Vulnerability {
 }
 
 // combineIntoOSV creates OSV entry by combining loaded CVEs from NVD and PackageInfo information from security advisories.
-func combineIntoOSV(cve5osv map[cves.CVEID]*osvschema.Vulnerability, nvdosv map[cves.CVEID]*osvschema.Vulnerability, mandatoryCVEIDs []string) map[cves.CVEID]*osvschema.Vulnerability {
-	osvRecords := make(map[cves.CVEID]*osvschema.Vulnerability)
+func combineIntoOSV(cve5osv map[models.CVEID]*osvschema.Vulnerability, nvdosv map[models.CVEID]*osvschema.Vulnerability, mandatoryCVEIDs []string) map[models.CVEID]*osvschema.Vulnerability {
+	osvRecords := make(map[models.CVEID]*osvschema.Vulnerability)
 
 	// Iterate through CVEs from security advisories (cve5) as the base
 	for cveID, cve5 := range cve5osv {
@@ -190,7 +191,7 @@ func combineIntoOSV(cve5osv map[cves.CVEID]*osvschema.Vulnerability, nvdosv map[
 			baseOSV = cve5
 		}
 
-		if len(baseOSV.GetAffected()) == 0 {
+		if len(baseOSV.GetAffected()) == 0 || !hasRanges(baseOSV.GetAffected()) {
 			// check if part exists.
 			if !slices.Contains(mandatoryCVEIDs, string(cveID)) {
 				continue
@@ -201,7 +202,7 @@ func combineIntoOSV(cve5osv map[cves.CVEID]*osvschema.Vulnerability, nvdosv map[
 
 	// Add any remaining CVEs from NVD that were not in the advisory data.
 	for cveID, nvd := range nvdosv {
-		if len(nvd.GetAffected()) == 0 {
+		if len(nvd.GetAffected()) == 0 || !hasRanges(nvd.GetAffected()) {
 			continue
 		}
 		osvRecords[cveID] = nvd
@@ -227,6 +228,13 @@ func combineTwoOSVRecords(cve5 *osvschema.Vulnerability, nvd *osvschema.Vulnerab
 			refMap[r.GetUrl()] = true
 		}
 	}
+
+	slices.SortFunc(baseOSV.GetReferences(), func(a, b *osvschema.Reference) int {
+		return cmp.Or(
+			cmp.Compare(a.GetType(), b.GetType()),
+			cmp.Compare(a.GetUrl(), b.GetUrl()),
+		)
+	})
 
 	// Merge timestamps: latest modified, earliest published.
 	cve5Modified := baseOSV.GetModified()
@@ -312,10 +320,10 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 				}
 
 				if c5Intro != "" || c5Fixed != "" {
-					newRange := cves.BuildVersionRange(c5Intro, "", c5Fixed)
-					newRange.Repo = repo
-					newRange.Type = osvschema.Range_GIT // Preserve the repo
+					newRange := conversion.BuildGitVersionRange(c5Intro, "", c5Fixed, repo)
 					newAffectedRanges = append(newAffectedRanges, newRange)
+				} else {
+					newAffectedRanges = cveRanges
 				}
 			} else {
 				newAffectedRanges = cveRanges
@@ -347,10 +355,28 @@ func pickAffectedInformation(cve5Affected []*osvschema.Affected, nvdAffected []*
 
 	// sort by repo
 	slices.SortFunc(combinedAffected, func(a, b *osvschema.Affected) int {
-		return cmp.Compare(a.GetRanges()[0].GetRepo(), b.GetRanges()[0].GetRepo())
+		var repoA, repoB string
+		if len(a.GetRanges()) > 0 {
+			repoA = a.GetRanges()[0].GetRepo()
+		}
+		if len(b.GetRanges()) > 0 {
+			repoB = b.GetRanges()[0].GetRepo()
+		}
+
+		return cmp.Compare(repoA, repoB)
 	})
 
 	return combinedAffected
+}
+
+func hasRanges(affected []*osvschema.Affected) bool {
+	for _, a := range affected {
+		if len(a.GetRanges()) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getRangeBoundaryVersions extracts the introduced and fixed versions from a slice of OSV events.
