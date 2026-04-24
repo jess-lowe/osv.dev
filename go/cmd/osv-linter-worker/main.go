@@ -7,7 +7,7 @@
 //
 // Usage:
 //
-//	go run main.go -work_dir=/tmp -local_data=/path/to/all.zip -linter_binary=osv-linter -dry_run=true
+//	go run main.go -work-dir=/tmp -local-data=/path/to/all.zip -linter-bin=osv-linter -dry-run=true
 //
 // Options:
 //
