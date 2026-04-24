@@ -249,10 +249,10 @@ pre {
   position: relative;
   display: inline-block;
   width: 650px;
-  color: $osv-white;
 }
 
 .tooltip .tooltiptext {
+  color: $osv-white;
   background: $osv-tooltip-bg;
   visibility: hidden;
   width: 120px;
@@ -1205,15 +1205,15 @@ osv-tabs.vulnerability-packages[affordance="collapse"] {
       font-weight: bold;
 
       html[data-theme="light"] & {
-        background: $osv-grey-200;
-        color: $osv-white;
+        background: #c4c4c4;
+        color: $osv-red-700;
 
         &::before {
-          background-color: $osv-white;
+          background-color: $osv-red-700;
         }
 
         &:hover {
-          background: $osv-grey-300;
+          background: $osv-grey-500;
         }
       }
 
