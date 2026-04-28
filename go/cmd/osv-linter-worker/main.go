@@ -149,14 +149,15 @@ func prepareData(ctx context.Context, tmpDir string, localData string) (string, 
 		}
 		if info.IsDir() {
 			hasJSON := false
-			err := filepath.Walk(localData, func(path string, info os.FileInfo, err error) error {
+			err := filepath.WalkDir(localData, func(_ string, d os.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
-				if !info.IsDir() && filepath.Ext(info.Name()) == ".json" {
+				if !d.IsDir() && filepath.Ext(d.Name()) == ".json" {
 					hasJSON = true
 					return filepath.SkipAll
 				}
+
 				return nil
 			})
 			if err != nil {
@@ -167,6 +168,7 @@ func prepareData(ctx context.Context, tmpDir string, localData string) (string, 
 					logger.Warn("Directory contains no JSON files but contains all.zip. Did you forget to unzip it?", slog.String("dir", localData))
 				}
 			}
+
 			return localData, nil
 		}
 		// Assume zip file
@@ -303,7 +305,7 @@ func runLinter(binaryPath, dataDir string) ([]byte, error) {
 func processLinterResult(ctx context.Context, dsClient *datastore.Client, output []byte, prefixToSource map[string]string, dryRun bool) error {
 	var results map[string][]map[string]any
 	if len(output) == 0 {
-		return fmt.Errorf("linter output is empty")
+		return errors.New("linter output is empty")
 	}
 	if err := json.Unmarshal(output, &results); err != nil {
 		return fmt.Errorf("failed to parse linter output: %w", err)
