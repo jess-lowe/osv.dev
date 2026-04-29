@@ -7,11 +7,12 @@
 package repository
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -171,27 +172,27 @@ func (x *RepositoryCache) GetCommits() []*CommitDetail {
 	return nil
 }
 
-type AffectedCommit struct {
+type Commit struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Hash          []byte                 `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AffectedCommit) Reset() {
-	*x = AffectedCommit{}
+func (x *Commit) Reset() {
+	*x = Commit{}
 	mi := &file_repository_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AffectedCommit) String() string {
+func (x *Commit) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AffectedCommit) ProtoMessage() {}
+func (*Commit) ProtoMessage() {}
 
-func (x *AffectedCommit) ProtoReflect() protoreflect.Message {
+func (x *Commit) ProtoReflect() protoreflect.Message {
 	mi := &file_repository_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -203,40 +204,40 @@ func (x *AffectedCommit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AffectedCommit.ProtoReflect.Descriptor instead.
-func (*AffectedCommit) Descriptor() ([]byte, []int) {
+// Deprecated: Use Commit.ProtoReflect.Descriptor instead.
+func (*Commit) Descriptor() ([]byte, []int) {
 	return file_repository_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *AffectedCommit) GetHash() []byte {
+func (x *Commit) GetHash() []byte {
 	if x != nil {
 		return x.Hash
 	}
 	return nil
 }
 
-type AffectedRefs struct {
+type Ref struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ref           string                 `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	Label         string                 `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"`
 	Hash          []byte                 `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AffectedRefs) Reset() {
-	*x = AffectedRefs{}
+func (x *Ref) Reset() {
+	*x = Ref{}
 	mi := &file_repository_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AffectedRefs) String() string {
+func (x *Ref) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AffectedRefs) ProtoMessage() {}
+func (*Ref) ProtoMessage() {}
 
-func (x *AffectedRefs) ProtoReflect() protoreflect.Message {
+func (x *Ref) ProtoReflect() protoreflect.Message {
 	mi := &file_repository_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -248,19 +249,19 @@ func (x *AffectedRefs) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AffectedRefs.ProtoReflect.Descriptor instead.
-func (*AffectedRefs) Descriptor() ([]byte, []int) {
+// Deprecated: Use Ref.ProtoReflect.Descriptor instead.
+func (*Ref) Descriptor() ([]byte, []int) {
 	return file_repository_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *AffectedRefs) GetRef() string {
+func (x *Ref) GetLabel() string {
 	if x != nil {
-		return x.Ref
+		return x.Label
 	}
 	return ""
 }
 
-func (x *AffectedRefs) GetHash() []byte {
+func (x *Ref) GetHash() []byte {
 	if x != nil {
 		return x.Hash
 	}
@@ -268,11 +269,12 @@ func (x *AffectedRefs) GetHash() []byte {
 }
 
 type AffectedCommitsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Commits       []*AffectedCommit      `protobuf:"bytes,1,rep,name=commits,proto3" json:"commits,omitempty"`
-	Refs          []*AffectedRefs        `protobuf:"bytes,2,rep,name=refs,proto3" json:"refs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Commits            []*Commit              `protobuf:"bytes,1,rep,name=commits,proto3" json:"commits,omitempty"`
+	Tags               []*Ref                 `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
+	CherryPickedEvents []*Event               `protobuf:"bytes,3,rep,name=cherry_picked_events,json=cherryPickedEvents,proto3" json:"cherry_picked_events,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AffectedCommitsResponse) Reset() {
@@ -305,16 +307,23 @@ func (*AffectedCommitsResponse) Descriptor() ([]byte, []int) {
 	return file_repository_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *AffectedCommitsResponse) GetCommits() []*AffectedCommit {
+func (x *AffectedCommitsResponse) GetCommits() []*Commit {
 	if x != nil {
 		return x.Commits
 	}
 	return nil
 }
 
-func (x *AffectedCommitsResponse) GetRefs() []*AffectedRefs {
+func (x *AffectedCommitsResponse) GetTags() []*Ref {
 	if x != nil {
-		return x.Refs
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *AffectedCommitsResponse) GetCherryPickedEvents() []*Event {
+	if x != nil {
+		return x.CherryPickedEvents
 	}
 	return nil
 }
@@ -431,6 +440,7 @@ type AffectedCommitsRequest struct {
 	DetectCherrypicksFixed      bool                   `protobuf:"varint,4,opt,name=detect_cherrypicks_fixed,json=detectCherrypicksFixed,proto3" json:"detect_cherrypicks_fixed,omitempty"`
 	DetectCherrypicksLimit      bool                   `protobuf:"varint,5,opt,name=detect_cherrypicks_limit,json=detectCherrypicksLimit,proto3" json:"detect_cherrypicks_limit,omitempty"`
 	ForceUpdate                 bool                   `protobuf:"varint,6,opt,name=force_update,json=forceUpdate,proto3" json:"force_update,omitempty"`
+	ConsiderAllBranches         bool                   `protobuf:"varint,7,opt,name=consider_all_branches,json=considerAllBranches,proto3" json:"consider_all_branches,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -507,6 +517,13 @@ func (x *AffectedCommitsRequest) GetForceUpdate() bool {
 	return false
 }
 
+func (x *AffectedCommitsRequest) GetConsiderAllBranches() bool {
+	if x != nil {
+		return x.ConsiderAllBranches
+	}
+	return false
+}
+
 var File_repository_proto protoreflect.FileDescriptor
 
 const file_repository_proto_rawDesc = "" +
@@ -516,29 +533,31 @@ const file_repository_proto_rawDesc = "" +
 	"\x04hash\x18\x01 \x01(\fR\x04hash\x12\x19\n" +
 	"\bpatch_id\x18\x02 \x01(\fR\apatchId\"A\n" +
 	"\x0fRepositoryCache\x12.\n" +
-	"\acommits\x18\x01 \x03(\v2\x14.gitter.CommitDetailR\acommits\"$\n" +
-	"\x0eAffectedCommit\x12\x12\n" +
-	"\x04hash\x18\x01 \x01(\fR\x04hash\"4\n" +
-	"\fAffectedRefs\x12\x10\n" +
-	"\x03ref\x18\x01 \x01(\tR\x03ref\x12\x12\n" +
-	"\x04hash\x18\x02 \x01(\fR\x04hash\"u\n" +
-	"\x17AffectedCommitsResponse\x120\n" +
-	"\acommits\x18\x01 \x03(\v2\x16.gitter.AffectedCommitR\acommits\x12(\n" +
-	"\x04refs\x18\x02 \x03(\v2\x14.gitter.AffectedRefsR\x04refs\"M\n" +
+	"\acommits\x18\x01 \x03(\v2\x14.gitter.CommitDetailR\acommits\"\x1c\n" +
+	"\x06Commit\x12\x12\n" +
+	"\x04hash\x18\x01 \x01(\fR\x04hash\"/\n" +
+	"\x03Ref\x12\x14\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\x12\x12\n" +
+	"\x04hash\x18\x02 \x01(\fR\x04hash\"\xa5\x01\n" +
+	"\x17AffectedCommitsResponse\x12(\n" +
+	"\acommits\x18\x01 \x03(\v2\x0e.gitter.CommitR\acommits\x12\x1f\n" +
+	"\x04tags\x18\x02 \x03(\v2\v.gitter.RefR\x04tags\x12?\n" +
+	"\x14cherry_picked_events\x18\x03 \x03(\v2\r.gitter.EventR\x12cherryPickedEvents\"M\n" +
 	"\x05Event\x120\n" +
 	"\n" +
 	"event_type\x18\x01 \x01(\x0e2\x11.gitter.EventTypeR\teventType\x12\x12\n" +
 	"\x04hash\x18\x02 \x01(\tR\x04hash\"C\n" +
 	"\fCacheRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12!\n" +
-	"\fforce_update\x18\x02 \x01(\bR\vforceUpdate\"\xac\x02\n" +
+	"\fforce_update\x18\x02 \x01(\bR\vforceUpdate\"\xe0\x02\n" +
 	"\x16AffectedCommitsRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12%\n" +
 	"\x06events\x18\x02 \x03(\v2\r.gitter.EventR\x06events\x12B\n" +
 	"\x1ddetect_cherrypicks_introduced\x18\x03 \x01(\bR\x1bdetectCherrypicksIntroduced\x128\n" +
 	"\x18detect_cherrypicks_fixed\x18\x04 \x01(\bR\x16detectCherrypicksFixed\x128\n" +
 	"\x18detect_cherrypicks_limit\x18\x05 \x01(\bR\x16detectCherrypicksLimit\x12!\n" +
-	"\fforce_update\x18\x06 \x01(\bR\vforceUpdate*D\n" +
+	"\fforce_update\x18\x06 \x01(\bR\vforceUpdate\x122\n" +
+	"\x15consider_all_branches\x18\a \x01(\bR\x13considerAllBranches*D\n" +
 	"\tEventType\x12\x0e\n" +
 	"\n" +
 	"INTRODUCED\x10\x00\x12\t\n" +
@@ -564,8 +583,8 @@ var file_repository_proto_goTypes = []any{
 	(EventType)(0),                  // 0: gitter.EventType
 	(*CommitDetail)(nil),            // 1: gitter.CommitDetail
 	(*RepositoryCache)(nil),         // 2: gitter.RepositoryCache
-	(*AffectedCommit)(nil),          // 3: gitter.AffectedCommit
-	(*AffectedRefs)(nil),            // 4: gitter.AffectedRefs
+	(*Commit)(nil),                  // 3: gitter.Commit
+	(*Ref)(nil),                     // 4: gitter.Ref
 	(*AffectedCommitsResponse)(nil), // 5: gitter.AffectedCommitsResponse
 	(*Event)(nil),                   // 6: gitter.Event
 	(*CacheRequest)(nil),            // 7: gitter.CacheRequest
@@ -573,15 +592,16 @@ var file_repository_proto_goTypes = []any{
 }
 var file_repository_proto_depIdxs = []int32{
 	1, // 0: gitter.RepositoryCache.commits:type_name -> gitter.CommitDetail
-	3, // 1: gitter.AffectedCommitsResponse.commits:type_name -> gitter.AffectedCommit
-	4, // 2: gitter.AffectedCommitsResponse.refs:type_name -> gitter.AffectedRefs
-	0, // 3: gitter.Event.event_type:type_name -> gitter.EventType
-	6, // 4: gitter.AffectedCommitsRequest.events:type_name -> gitter.Event
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	3, // 1: gitter.AffectedCommitsResponse.commits:type_name -> gitter.Commit
+	4, // 2: gitter.AffectedCommitsResponse.tags:type_name -> gitter.Ref
+	6, // 3: gitter.AffectedCommitsResponse.cherry_picked_events:type_name -> gitter.Event
+	0, // 4: gitter.Event.event_type:type_name -> gitter.EventType
+	6, // 5: gitter.AffectedCommitsRequest.events:type_name -> gitter.Event
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }

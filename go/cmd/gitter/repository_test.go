@@ -78,9 +78,9 @@ func TestBuildCommitGraph(t *testing.T) {
 		t.Errorf("expected 3 commits, got %d", len(r.commits))
 	}
 
-	// 2 tags + main branch
-	if len(r.refToCommit) != 3 {
-		t.Errorf("expected 3 refs, got %d", len(r.refToCommit))
+	// 2 tags
+	if len(r.tagToCommit) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(r.tagToCommit))
 	}
 }
 
@@ -220,12 +220,12 @@ func TestExpandByCherrypick(t *testing.T) {
 		{
 			name:     "Expand single commit with cherry-pick",
 			input:    []int{idx1},
-			expected: []SHA1{h1, h3},
+			expected: []SHA1{h3},
 		},
 		{
 			name:     "No expansion for commit without cherry-pick",
 			input:    []int{idx2},
-			expected: []SHA1{h2},
+			expected: []SHA1{},
 		},
 	}
 
@@ -347,7 +347,7 @@ func TestAffected_Introduced_Fixed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Affected(t.Context(), tt.se, false, false)
+			gotCommits, _ := repo.Affected(t.Context(), tt.se, false, false)
 
 			var got []SHA1
 			for _, c := range gotCommits {
@@ -463,7 +463,7 @@ func TestAffected_Introduced_LastAffected(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Affected(t.Context(), tt.se, false, false)
+			gotCommits, _ := repo.Affected(t.Context(), tt.se, false, false)
 
 			var got []SHA1
 			for _, c := range gotCommits {
@@ -568,7 +568,7 @@ func TestAffected_Combined(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Affected(t.Context(), tt.se, false, false)
+			gotCommits, _ := repo.Affected(t.Context(), tt.se, false, false)
 
 			var got []SHA1
 			for _, c := range gotCommits {
@@ -611,7 +611,6 @@ func TestAffected_Cherrypick(t *testing.T) {
 	repo.addEdgeForTest(hE, hF)
 	repo.addEdgeForTest(hF, hG)
 	repo.addEdgeForTest(hG, hH)
-	repo.rootCommits = []int{0}
 
 	// Setup PatchID map for cherrypicking
 	idxA := repo.getOrCreateIndex(hA)
@@ -625,13 +624,16 @@ func TestAffected_Cherrypick(t *testing.T) {
 	repo.commits[idxE].PatchID = c1
 	repo.commits[idxC].PatchID = c2
 	repo.commits[idxG].PatchID = c2
+	repo.rootCommits = []int{idxA, idxE}
 
 	tests := []struct {
-		name            string
-		se              *SeparatedEvents
-		cherrypickIntro bool
-		cherrypickFixed bool
-		expected        []SHA1
+		name                      string
+		se                        *SeparatedEvents
+		cherrypickIntro           bool
+		cherrypickFixed           bool
+		expectedCommits           []SHA1
+		expectedCherrypickedIntro []string
+		expectedCherrypickedFixed []string
 	}{
 		{
 			name: "Cherrypick Introduced Only: A introduced, G fixed",
@@ -639,9 +641,11 @@ func TestAffected_Cherrypick(t *testing.T) {
 				Introduced: []string{encodeSHA1(hA)},
 				Fixed:      []string{encodeSHA1(hG)},
 			},
-			cherrypickIntro: true,
-			cherrypickFixed: false,
-			expected:        []SHA1{hA, hB, hC, hD, hE, hF},
+			cherrypickIntro:           true,
+			cherrypickFixed:           false,
+			expectedCommits:           []SHA1{hA, hB, hC, hD, hE, hF},
+			expectedCherrypickedIntro: []string{encodeSHA1(hE)},
+			expectedCherrypickedFixed: nil,
 		},
 		{
 			name: "Cherrypick Fixed Only: A introduced, G fixed",
@@ -649,9 +653,11 @@ func TestAffected_Cherrypick(t *testing.T) {
 				Introduced: []string{encodeSHA1(hA)},
 				Fixed:      []string{encodeSHA1(hG)},
 			},
-			cherrypickIntro: false,
-			cherrypickFixed: true,
-			expected:        []SHA1{hA, hB},
+			cherrypickIntro:           false,
+			cherrypickFixed:           true,
+			expectedCommits:           []SHA1{hA, hB},
+			expectedCherrypickedIntro: nil,
+			expectedCherrypickedFixed: []string{encodeSHA1(hC)},
 		},
 		{
 			name: "Cherrypick Introduced and Fixed: A introduced, G fixed",
@@ -659,9 +665,11 @@ func TestAffected_Cherrypick(t *testing.T) {
 				Introduced: []string{encodeSHA1(hA)},
 				Fixed:      []string{encodeSHA1(hG)},
 			},
-			cherrypickIntro: true,
-			cherrypickFixed: true,
-			expected:        []SHA1{hA, hB, hE, hF},
+			cherrypickIntro:           true,
+			cherrypickFixed:           true,
+			expectedCommits:           []SHA1{hA, hB, hE, hF},
+			expectedCherrypickedIntro: []string{encodeSHA1(hE)},
+			expectedCherrypickedFixed: []string{encodeSHA1(hC)},
 		},
 		{
 			name: "Cherrypick Introduced=0: G fixed",
@@ -669,23 +677,34 @@ func TestAffected_Cherrypick(t *testing.T) {
 				Introduced: []string{"0"},
 				Fixed:      []string{encodeSHA1(hG)},
 			},
-			cherrypickIntro: true,
-			cherrypickFixed: true,
-			expected:        []SHA1{hA, hB, hE, hF},
+			cherrypickIntro:           true,
+			cherrypickFixed:           true,
+			expectedCommits:           []SHA1{hA, hB, hE, hF},
+			expectedCherrypickedIntro: nil,
+			expectedCherrypickedFixed: []string{encodeSHA1(hC)},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Affected(t.Context(), tt.se, tt.cherrypickIntro, tt.cherrypickFixed)
+			gotCommits, res := repo.Affected(t.Context(), tt.se, tt.cherrypickIntro, tt.cherrypickFixed)
+			gotIntro, gotFixed := res.Introduced, res.Fixed
 
 			var got []SHA1
 			for _, c := range gotCommits {
 				got = append(got, c.Hash)
 			}
 
-			if diff := cmp.Diff(tt.expected, got, cmpSHA1Opts...); diff != "" {
-				t.Errorf("TestAffected_Cherrypick() mismatch (-want +got):\n%s", diff)
+			if diff := cmp.Diff(tt.expectedCommits, got, cmpSHA1Opts...); diff != "" {
+				t.Errorf("TestAffected_Cherrypick() commits mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tt.expectedCherrypickedIntro, gotIntro); diff != "" {
+				t.Errorf("TestAffected_Cherrypick() intro mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tt.expectedCherrypickedFixed, gotFixed); diff != "" {
+				t.Errorf("TestAffected_Cherrypick() fixed mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -759,7 +778,7 @@ func TestLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Limit(t.Context(), tt.se, false, false)
+			gotCommits, _ := repo.Limit(t.Context(), tt.se, false, false)
 
 			var got []SHA1
 			for _, c := range gotCommits {
@@ -802,7 +821,6 @@ func TestLimit_Cherrypick(t *testing.T) {
 	repo.addEdgeForTest(hE, hF)
 	repo.addEdgeForTest(hF, hG)
 	repo.addEdgeForTest(hG, hH)
-	repo.rootCommits = []int{0}
 
 	// Setup PatchID map for cherrypicking
 	idxB := repo.getOrCreateIndex(hB)
@@ -811,6 +829,10 @@ func TestLimit_Cherrypick(t *testing.T) {
 	idxC := repo.getOrCreateIndex(hC)
 	idxG := repo.getOrCreateIndex(hG)
 	repo.patchIDToCommits[c2] = []int{idxC, idxG}
+
+	idxA := repo.getOrCreateIndex(hA)
+	idxE := repo.getOrCreateIndex(hE)
+	repo.rootCommits = []int{idxA, idxE}
 
 	repo.commits[idxB].PatchID = c1
 	repo.commits[idxF].PatchID = c1
@@ -842,7 +864,7 @@ func TestLimit_Cherrypick(t *testing.T) {
 			},
 			cherrypickIntro: false,
 			cherrypickLimit: true,
-			expected:        []SHA1{hB, hE, hF},
+			expected:        []SHA1{hB},
 		},
 		{
 			name: "Cherrypick Introduced and Limit: A introduced, G limit",
@@ -852,7 +874,7 @@ func TestLimit_Cherrypick(t *testing.T) {
 			},
 			cherrypickIntro: true,
 			cherrypickLimit: true,
-			expected:        []SHA1{hA, hB, hE, hF},
+			expected:        []SHA1{hA, hB},
 		},
 		{
 			name: "Cherrypick Introduced=0: G limit",
@@ -868,7 +890,244 @@ func TestLimit_Cherrypick(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCommits := repo.Limit(t.Context(), tt.se, tt.cherrypickIntro, tt.cherrypickLimit)
+			gotCommits, res := repo.Limit(t.Context(), tt.se, tt.cherrypickIntro, tt.cherrypickLimit)
+			gotIntro, gotLimit := res.Introduced, res.Limit
+
+			var got []SHA1
+			for _, c := range gotCommits {
+				got = append(got, c.Hash)
+			}
+
+			// Check affected commits
+			if diff := cmp.Diff(tt.expected, got, cmpSHA1Opts...); diff != "" {
+				t.Errorf("TestLimit_Cherrypick() commits mismatch (-want +got):\n%s", diff)
+			}
+
+			// Check cherrypicked events
+			var expectedIntro []string
+			var expectedLimit []string
+			if tt.cherrypickIntro && tt.se.Introduced[0] == encodeSHA1(hB) {
+				expectedIntro = append(expectedIntro, encodeSHA1(hF))
+			}
+			if tt.cherrypickLimit && tt.se.Limit[0] == encodeSHA1(hG) {
+				expectedLimit = append(expectedLimit, encodeSHA1(hC))
+			}
+
+			if diff := cmp.Diff(expectedIntro, gotIntro); diff != "" {
+				t.Errorf("TestLimit_Cherrypick() intro mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(expectedLimit, gotLimit); diff != "" {
+				t.Errorf("TestLimit_Cherrypick() limit mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveEvents_MultipleRoots(t *testing.T) {
+	repo := NewRepository("/repo")
+
+	// Commit graph has 4 roots, 3 disconnected trees
+	// Tree 1:
+	// A -> B -> C
+	// Tree 2:
+	// D -> E -> F
+	// Tree 3 (Multiple Roots):
+	// G --\
+	//      -> I -> J
+	// H --/
+
+	hA := decodeSHA1("aaaa")
+	hB := decodeSHA1("bbbb")
+	hC := decodeSHA1("cccc")
+	hD := decodeSHA1("dddd")
+	hE := decodeSHA1("eeee")
+	hF := decodeSHA1("ffff")
+	hG := decodeSHA1("adad")
+	hH := decodeSHA1("aeae")
+	hJ := decodeSHA1("afaf")
+	hK := decodeSHA1("bcbc")
+
+	repo.addEdgeForTest(hA, hB)
+	repo.addEdgeForTest(hB, hC)
+
+	repo.addEdgeForTest(hD, hE)
+	repo.addEdgeForTest(hE, hF)
+
+	repo.addEdgeForTest(hG, hJ)
+	repo.addEdgeForTest(hH, hJ)
+	repo.addEdgeForTest(hJ, hK)
+
+	idxA := repo.getOrCreateIndex(hA)
+	idxD := repo.getOrCreateIndex(hD)
+	idxG := repo.getOrCreateIndex(hG)
+	idxH := repo.getOrCreateIndex(hH)
+	repo.rootCommits = []int{idxA, idxD, idxG, idxH}
+
+	tests := []struct {
+		name          string
+		se            *SeparatedEvents
+		expectedIntro []int
+	}{
+		{
+			name: "Introduced=0, No fix: Resolves to all roots",
+			se: &SeparatedEvents{
+				Introduced: []string{"0"},
+			},
+			expectedIntro: []int{idxA, idxD, idxG, idxH},
+		},
+		{
+			name: "Introduced=0, Fix in Tree 2: Resolves to Root D only",
+			se: &SeparatedEvents{
+				Introduced: []string{"0"},
+				Fixed:      []string{encodeSHA1(hE)},
+			},
+			expectedIntro: []int{idxD},
+		},
+		{
+			name: "Introduced=0, LastAffected in Tree 1: Resolves to Root A only",
+			se: &SeparatedEvents{
+				Introduced:   []string{"0"},
+				LastAffected: []string{encodeSHA1(hB)},
+			},
+			expectedIntro: []int{idxA},
+		},
+		{
+			name: "Introduced=0, Fix at J: Resolves to both root G and H",
+			se: &SeparatedEvents{
+				Introduced: []string{"0"},
+				Fixed:      []string{encodeSHA1(hJ)},
+			},
+			expectedIntro: []int{idxG, idxH},
+		},
+		{
+			name: "No introduced=0: Do not resolve",
+			se: &SeparatedEvents{
+				Introduced: []string{encodeSHA1(hA)},
+				Fixed:      []string{encodeSHA1(hE)},
+			},
+			expectedIntro: []int{idxA},
+		},
+		{
+			name: "Introduced=0, Mixed Fixed and LastAffected: Resolves to both Root A and Root D",
+			se: &SeparatedEvents{
+				Introduced:   []string{"0"},
+				Fixed:        []string{encodeSHA1(hB)},
+				LastAffected: []string{encodeSHA1(hE)},
+			},
+			expectedIntro: []int{idxA, idxD},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := repo.resolveEvents(t.Context(), tt.se, false, false)
+			gotIntro := res.introduced
+
+			if diff := cmp.Diff(tt.expectedIntro, gotIntro, cmpopts.SortSlices(func(a, b int) bool { return a < b })); diff != "" {
+				t.Errorf("TestResolveEvents_MultipleRoots() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestAffectedSingleBranch(t *testing.T) {
+	repo := NewRepository("/repo")
+
+	// Graph: (Parent -> Child)
+	//            -> F -> G
+	//           /
+	// A -> B -> C -> D -> E
+	//      \        /
+	//       -> H ->
+
+	hA := decodeSHA1("aaaa")
+	hB := decodeSHA1("bbbb")
+	hC := decodeSHA1("cccc")
+	hD := decodeSHA1("dddd")
+	hE := decodeSHA1("eeee")
+	hF := decodeSHA1("ffff")
+	hG := decodeSHA1("abab")
+	hH := decodeSHA1("acac")
+
+	hI := decodeSHA1("adad") // This hash is not in the graph
+
+	// Setup graph (Parent -> Children)
+	repo.addEdgeForTest(hA, hB)
+	repo.addEdgeForTest(hB, hC)
+	repo.addEdgeForTest(hB, hH)
+	repo.addEdgeForTest(hC, hD)
+	repo.addEdgeForTest(hC, hF)
+	repo.addEdgeForTest(hD, hE)
+	repo.addEdgeForTest(hF, hG)
+	repo.addEdgeForTest(hH, hD)
+	repo.rootCommits = []int{0} // A is root commit
+
+	tests := []struct {
+		name     string
+		se       *SeparatedEvents
+		expected []SHA1
+	}{
+		{
+			name: "Only follow first parent (fixed): A introduced, G fixed",
+			se: &SeparatedEvents{
+				Introduced: []string{encodeSHA1(hA)},
+				Fixed:      []string{encodeSHA1(hG)},
+			},
+			expected: []SHA1{hA, hB, hC, hF},
+		},
+		{
+			name: "Only follow first parent (last affected): A introduced, D lastAffected",
+			se: &SeparatedEvents{
+				Introduced:   []string{encodeSHA1(hA)},
+				LastAffected: []string{encodeSHA1(hD)},
+			},
+			expected: []SHA1{hA, hB, hC, hD},
+		},
+		{
+			name: "Intro and fix not on same branch -> nothing affected: H introduce, G fixed",
+			se: &SeparatedEvents{
+				Introduced: []string{encodeSHA1(hH)},
+				Fixed:      []string{encodeSHA1(hG)},
+			},
+			expected: []SHA1{},
+		},
+		{
+			name: "Fix not found in graph -> nothing affected: A introduce, I fixed",
+			se: &SeparatedEvents{
+				Introduced: []string{encodeSHA1(hA)},
+				Fixed:      []string{encodeSHA1(hI)},
+			},
+			expected: []SHA1{},
+		},
+		{
+			name: "lastAffected has no children: A introduced, E lastAffected",
+			se: &SeparatedEvents{
+				Introduced:   []string{encodeSHA1(hA)},
+				LastAffected: []string{encodeSHA1(hE)},
+			},
+			expected: []SHA1{hA, hB, hC, hD, hE},
+		},
+		{
+			name: "introduced=0, E fixed",
+			se: &SeparatedEvents{
+				Introduced: []string{"0"},
+				Fixed:      []string{encodeSHA1(hE)},
+			},
+			expected: []SHA1{hA, hB, hC, hD},
+		},
+		{
+			name: "introduced=0, E lastAffected",
+			se: &SeparatedEvents{
+				Introduced:   []string{"0"},
+				LastAffected: []string{encodeSHA1(hE)},
+			},
+			expected: []SHA1{hA, hB, hC, hD, hE},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCommits := repo.AffectedSingleBranch(t.Context(), tt.se)
 
 			var got []SHA1
 			for _, c := range gotCommits {
@@ -876,7 +1135,7 @@ func TestLimit_Cherrypick(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tt.expected, got, cmpSHA1Opts...); diff != "" {
-				t.Errorf("TestLimit_Cherrypick() mismatch (-want +got):\n%s", diff)
+				t.Errorf("TestAffectedSingleBranch() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

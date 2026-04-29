@@ -15,18 +15,19 @@ message RepositoryCache {
     repeated CommitDetail commits = 1;
 }
 
-message AffectedCommit {
+message Commit {
     bytes hash = 1;
 }
 
-message AffectedRefs {
-    string ref = 1;
+message Ref {
+    string label = 1;
     bytes hash = 2;
 }
 
 message AffectedCommitsResponse {
-    repeated AffectedCommit commits = 1;
-    repeated AffectedRefs refs = 2;
+    repeated Commit commits = 1;
+    repeated Ref tags = 2;
+    repeated Event cherry_picked_events = 3;
 }
 
 enum EventType {
@@ -53,4 +54,5 @@ message AffectedCommitsRequest {
     bool detect_cherrypicks_fixed = 4;
     bool detect_cherrypicks_limit = 5;
     bool force_update = 6;
+    bool consider_all_branches = 7;
 }
