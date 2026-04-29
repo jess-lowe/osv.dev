@@ -12,7 +12,6 @@ import (
 	"github.com/google/osv/vulnfeeds/git"
 	"github.com/google/osv/vulnfeeds/models"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
@@ -107,37 +106,13 @@ func TestCVEToOSV_ReferencesDeterminism(t *testing.T) {
 		Metrics: &models.CVEItemMetrics{},
 	}
 	metrics := &models.ConversionMetrics{}
-	outDir := t.TempDir()
 
 	var firstResult []*osvschema.Reference
 	for i := range 10 {
 		cache := &git.RepoTagsCache{}
-		CVEToOSV(cve, nil, cache, metrics)
-
-		var b []byte
-		err := filepath.Walk(outDir, func(path string, info os.FileInfo, _ error) error {
-			if !info.IsDir() && filepath.Ext(path) == ".json" {
-				var fileErr error
-				b, fileErr = os.ReadFile(path)
-				if fileErr != nil {
-					return fileErr
-				}
-			}
-
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("Failed to walk or read OSV file: %v", err)
-		}
-
-		if len(b) == 0 {
-			t.Fatalf("Failed to find OSV file")
-		}
-
-		var vuln osvschema.Vulnerability
-		err = protojson.Unmarshal(b, &vuln)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal OSV: %v", err)
+		vuln, _, _ := CVEToOSV(cve, nil, cache, metrics)
+		if vuln == nil {
+			t.Fatalf("Iteration %d produced nil vulnerability", i)
 		}
 
 		if i == 0 {
