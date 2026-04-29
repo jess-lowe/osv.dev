@@ -1,6 +1,9 @@
 
 [Test/cassette_single_query/TestQueryEndpoint/CommitQuery - 1]
 {
+  "query": {
+    "commit": "6879efc2c1596d11a6a6ad296f80063b558d5e0f"
+  },
   "vulns": [
     {
       "id": "CVE-2021-45931",
@@ -309,7 +312,13 @@
                 }
               ],
               "database_specific": "<Any value>"
-            },
+            }
+          ],
+          "versions": 194,
+          "database_specific": "<Any value>"
+        },
+        {
+          "ranges": [
             {
               "type": "GIT",
               "repo": "https://github.com/harfbuzz/harfbuzz",
@@ -318,12 +327,12 @@
                   "introduced": "0"
                 },
                 {
-                  "fixed": "1265ff8d990284f04d8768f35b0e20ae5f60daae"
+                  "fixed": "b0af59229cc233a66106c696534ac39be56093d8"
                 }
               ]
             }
           ],
-          "versions": 195,
+          "versions": 194,
           "database_specific": "<Any value>"
         }
       ],
@@ -384,6 +393,13 @@
 
 [Test/cassette_single_query/TestQueryEndpoint/GitQueryByTag - 1]
 {
+  "query": {
+    "package": {
+      "name": "https://github.com/curl/curl.git",
+      "ecosystem": "GIT"
+    },
+    "version": "8.5.0"
+  },
   "vulns": [
     {
       "id": "CURL-CVE-2024-0853",
@@ -3079,13 +3095,26 @@
 [Test/cassette_single_query/TestQueryEndpoint/Invalid1 - 1]
 {
   "code": 3,
-  "message": "version specified in params and PURL query"
+  "message": "version specified in params and PURL query",
+  "query": {
+    "package": {
+      "purl": "pkg:pypi/jinja2@3.1.4"
+    },
+    "version": "3.1.4"
+  }
 }
 
 ---
 
 [Test/cassette_single_query/TestQueryEndpoint/PackageAndVersionQuery - 1]
 {
+  "query": {
+    "package": {
+      "name": "nokogiri",
+      "ecosystem": "RubyGems"
+    },
+    "version": "1.18.2"
+  },
   "vulns": [
     {
       "id": "GHSA-353f-x4gh-cqq8",
@@ -3382,6 +3411,13 @@
 
 [Test/cassette_single_query/TestQueryEndpoint/Valid1 - 1]
 {
+  "query": {
+    "package": {
+      "name": "jinja2",
+      "ecosystem": "PyPI"
+    },
+    "version": "3.1.4"
+  },
   "vulns": [
     {
       "id": "GHSA-cpwx-vrp4-4pq7",
@@ -3599,6 +3635,11 @@
 
 [Test/cassette_single_query/TestQueryEndpoint/Valid2 - 1]
 {
+  "query": {
+    "package": {
+      "purl": "pkg:pypi/jinja2@3.1.4"
+    }
+  },
   "vulns": [
     {
       "id": "GHSA-cpwx-vrp4-4pq7",
@@ -3816,6 +3857,12 @@
 
 [Test/cassette_single_query/TestQueryEndpoint/Valid3 - 1]
 {
+  "query": {
+    "package": {
+      "purl": "pkg:pypi/jinja2"
+    },
+    "version": "3.1.4"
+  },
   "vulns": [
     {
       "id": "GHSA-cpwx-vrp4-4pq7",
