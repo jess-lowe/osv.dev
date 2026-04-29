@@ -1,20 +1,19 @@
 package nvd
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
-	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/go-git/go-git/v5/plumbing/transport/client"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/osv/vulnfeeds/conversion"
 	"github.com/google/osv/vulnfeeds/git"
 	"github.com/google/osv/vulnfeeds/models"
+	"github.com/ossf/osv-schema/bindings/go/osvschema"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -94,7 +93,6 @@ func TestCVEToOSV_429(t *testing.T) {
 	}
 }
 
-
 func TestCVEToOSV_ReferencesDeterminism(t *testing.T) {
 	cve := models.NVDCVE{
 		ID: "CVE-2025-12345",
@@ -114,7 +112,7 @@ func TestCVEToOSV_ReferencesDeterminism(t *testing.T) {
 	var firstResult []*osvschema.Reference
 	for i := range 10 {
 		cache := &git.RepoTagsCache{}
-		CVEToOSV(cve, nil, cache, outDir, metrics, false, false)
+		CVEToOSV(cve, nil, cache, metrics)
 
 		var b []byte
 		err := filepath.Walk(outDir, func(path string, info os.FileInfo, _ error) error {

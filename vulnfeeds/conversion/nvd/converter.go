@@ -330,4 +330,3 @@ func FindRepos(cve models.NVDCVE, vpRepoCache *c.VPRepoCache, repoTagsCache *git
 
 	return reposForCVE
 }
-
