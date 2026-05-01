@@ -81,6 +81,26 @@
   overflow: auto;
   position: relative;
   background-color: #1e1e1e;
+
+  .code-card-copy {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    z-index: 10;
+
+    .icon {
+      background: #c5221f;
+      border-radius: 999px;
+      --md-sys-color-on-surface-variant: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &:hover .icon {
+      background: #ad0300;
+    }
+  }
 }
 
 .json-content {

@@ -45,10 +45,15 @@
         </div>
       </div>
       <div class="content-display">
+        <clipboard-copy class="code-card-copy hidden" id="copy-btn-{{ i }}" for="json-content-{{ i }}">
+          <md-icon-button class="icon">
+            <md-icon>content_copy</md-icon>
+          </md-icon-button>
+        </clipboard-copy>
         <div class="loading-spinner hidden">
           <md-circular-progress indeterminate></md-circular-progress>
         </div>
-        <pre class="json-content">Select a source to view content</pre>
+        <pre class="json-content" id="json-content-{{ i }}">Select a source to view content</pre>
       </div>
     </div>
     {% endfor %}
