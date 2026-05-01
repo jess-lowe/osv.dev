@@ -116,28 +116,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const select = column.querySelector(".source-select");
     const contentPre = column.querySelector(".json-content");
     const spinner = column.querySelector(".loading-spinner");
+    const copyBtn = column.querySelector(".code-card-copy");
     const sourceKey = select.value;
     const vulnId = vulnIdInput.value.trim();
 
     if (!sourceKey) {
         contentPre.textContent = "Select a source to view content";
+        copyBtn.classList.add("hidden");
         return;
     }
 
     if (!vulnId) {
       contentPre.textContent = "Please enter a Vulnerability ID";
+      copyBtn.classList.add("hidden");
       return;
     }
 
     spinner.classList.remove("hidden");
+    copyBtn.classList.add("hidden");
     contentPre.textContent = "";
 
     fetchData(sourceKey, vulnId)
       .then((data) => {
         contentPre.innerHTML = syntaxHighlight(data);
+        copyBtn.classList.remove("hidden");
       })
       .catch((error) => {
         contentPre.textContent = error.message;
+        copyBtn.classList.add("hidden");
       })
       .finally(() => {
         spinner.classList.add("hidden");
