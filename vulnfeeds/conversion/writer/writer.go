@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"path"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -224,6 +223,8 @@ func UploadVulnsToGCS(
 		if err != nil {
 			logger.Fatal("Failed to create storage client", slog.Any("err", err))
 		}
+		defer storageClient.Close()
+
 		outBkt = storageClient.Bucket(outputBucketName)
 		if overridesBucketName != "" {
 			overridesBkt = storageClient.Bucket(overridesBucketName)
@@ -290,7 +291,7 @@ func UploadVulnToGCS(ctx context.Context, bkt *storage.BucketHandle, prefix stri
 		return fmt.Errorf("failed to marshal vulnerability %s: %w", vuln.GetId(), err)
 	}
 
-	objectName := filepath.Join(prefix, vuln.GetId()+".json")
+	objectName := path.Join(prefix, vuln.GetId()+".json")
 	reader := bytes.NewReader(data)
 
 	return gcs.UploadToGCS(ctx, bkt, objectName, reader, "application/json")
@@ -307,7 +308,7 @@ func UploadMetricsToGCS(ctx context.Context, bkt *storage.BucketHandle, prefix s
 		return fmt.Errorf("failed to marshal metrics for %s: %w", cveID, err)
 	}
 
-	objectName := filepath.Join(prefix, string(cveID)+".metrics.json")
+	objectName := path.Join(prefix, string(cveID)+".metrics.json")
 	reader := bytes.NewReader(data)
 
 	return gcs.UploadToGCS(ctx, bkt, objectName, reader, "application/json")
@@ -315,7 +316,7 @@ func UploadMetricsToGCS(ctx context.Context, bkt *storage.BucketHandle, prefix s
 
 // CreateMetricsFile creates the initial file for the metrics record.
 func CreateMetricsFile(id models.CVEID, vulnDir string) (*os.File, error) {
-	metricsFile := filepath.Join(vulnDir, string(id)+".metrics"+models.Extension)
+	metricsFile := path.Join(vulnDir, string(id)+".metrics"+models.Extension)
 	f, err := os.Create(metricsFile)
 	if err != nil {
 		logger.Info("Failed to open for writing "+metricsFile, slog.String("cve", string(id)), slog.String("path", metricsFile), slog.Any("err", err))
@@ -327,7 +328,7 @@ func CreateMetricsFile(id models.CVEID, vulnDir string) (*os.File, error) {
 
 // CreateOSVFile creates the initial file for the OSV record.
 func CreateOSVFile(id models.CVEID, vulnDir string) (*os.File, error) {
-	outputFile := filepath.Join(vulnDir, string(id)+models.Extension)
+	outputFile := path.Join(vulnDir, string(id)+models.Extension)
 
 	f, err := os.Create(outputFile)
 	if err != nil {
