@@ -2,6 +2,7 @@
 package nvd
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/osv/vulnfeeds/utility"
 	"github.com/google/osv/vulnfeeds/utility/logger"
 	"github.com/google/osv/vulnfeeds/vulns"
+	"github.com/ossf/osv-schema/bindings/go/osvschema"
 )
 
 var ErrNoRanges = errors.New("no ranges")
@@ -134,6 +136,19 @@ func CVEToOSV(cve models.NVDCVE, repos []string, cache *git.RepoTagsCache, metri
 	}
 
 	v.Affected = append(v.Affected, affected...)
+
+	// sort affected by repository name alphabetically to ensure deterministic output and caching hashes
+	slices.SortFunc(v.Affected, func(a, b *osvschema.Affected) int {
+		var repoA, repoB string
+		if len(a.GetRanges()) > 0 {
+			repoA = a.GetRanges()[0].GetRepo()
+		}
+		if len(b.GetRanges()) > 0 {
+			repoB = b.GetRanges()[0].GetRepo()
+		}
+
+		return cmp.Compare(repoA, repoB)
+	})
 
 	unresolvedRangesList := c.CreateUnresolvedRanges(unresolvedRanges)
 	if unresolvedRangesList != nil {
