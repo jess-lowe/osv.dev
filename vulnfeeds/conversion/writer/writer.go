@@ -147,7 +147,7 @@ func handleOverride(ctx context.Context, v *osvschema.Vulnerability, overridesBk
 	return &overrideV, overrideBuf, nil
 }
 
-// Worker is a generic worker that processes OSV vulnerabilities from a channel.
+// VulnWorker is a generic worker that processes OSV vulnerabilities from a channel.
 // It can upload them to a GCS bucket or write them to disk.
 // It supports checking for overrides in a separate GCS bucket location if overridesBkt is not nil.
 // For GCS uploads, it calculates a hash of the vulnerability (excluding the modified time) and compares it
