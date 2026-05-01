@@ -170,4 +170,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
   });
+
+  // Handle clipboard copy feedback
+  document.addEventListener('clipboard-copy', (event) => {
+    const copyButton = event.target;
+    const icon = copyButton.querySelector('md-icon');
+    if (icon) {
+      const originalText = icon.textContent;
+      icon.textContent = 'check';
+      setTimeout(() => {
+        icon.textContent = originalText;
+      }, 2000);
+    }
+  });
 });

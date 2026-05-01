@@ -84,18 +84,21 @@
 
   .code-card-copy {
     position: absolute;
-    top: 8px;
+    bottom: 8px;
     right: 8px;
     z-index: 10;
 
     .icon {
-      background: #3c4043;
+      background: #c5221f;
       border-radius: 999px;
       --md-sys-color-on-surface-variant: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     &:hover .icon {
-      background: #555;
+      background: #ad0300;
     }
   }
 }
