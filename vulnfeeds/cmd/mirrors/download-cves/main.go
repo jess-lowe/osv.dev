@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/osv/vulnfeeds/gcs-tools"
 	"github.com/google/osv/vulnfeeds/models"
 	"github.com/google/osv/vulnfeeds/utility/logger"
 	"github.com/sethvargo/go-retry"
@@ -36,22 +37,64 @@ const (
 // source of data. API code here will remain just in case.
 
 // var apiKey = flag.String("api_key", "", "API key for accessing NVD API 2.0")
-var cvePath = flag.String("cve-path", CVEPathDefault, "Where to download CVEs to")
+var (
+	cvePath   = flag.String("cve-path", CVEPathDefault, "Where to download CVEs to")
+	gcsBucket = flag.String("gcs-bucket", "", "GCS bucket to upload NVD CVE JSON files to")
+	gcsPrefix = flag.String("gcs-prefix", "nvd", "Prefix within the GCS bucket")
+)
 
 func main() {
 	logger.InitGlobalLogger()
 	defer logger.Close()
 
 	flag.Parse()
+
+	if *cvePath == CVEPathDefault {
+		if workDir := os.Getenv("WORK_DIR"); workDir != "" {
+			*cvePath = path.Join(workDir, "nvd")
+		}
+	}
+
+	if err := os.MkdirAll(*cvePath, 0755); err != nil {
+		logger.Fatal("Failed to create CVE download directory", slog.String("path", *cvePath), slog.Any("err", err))
+	}
+
+	if *gcsBucket == "" {
+		*gcsBucket = os.Getenv("GCS_BUCKET")
+	}
+	if *gcsPrefix == "nvd" {
+		if envPrefix := os.Getenv("GCS_PREFIX"); envPrefix != "" {
+			*gcsPrefix = envPrefix
+		}
+	}
+
+	var gcsHelper *gcs.Helper
+	if *gcsBucket != "" {
+		var err error
+		ctx := context.Background()
+		// 4 workers are more than enough for ~25 files
+		gcsHelper, err = gcs.InitUploadPool(ctx, 4, *gcsBucket)
+		if err != nil {
+			logger.Fatal("Failed to initialize GCS upload pool", slog.Any("err", err))
+		}
+		defer gcsHelper.CloseAndWait()
+		logger.Info("GCS Upload Pool initialized", slog.String("bucket", *gcsBucket))
+	}
+
 	// if *apiKey != "" {
 	// 	downloadCVE2FromAPI(*apiKey, *cvePath)
 	// } else {
 	currentYear := time.Now().Year()
 	for i := startingYear; i <= currentYear; i++ {
-		downloadCVEFromDataDumps(strconv.Itoa(i), *cvePath)
+		version := strconv.Itoa(i)
+		downloadCVEFromDataDumps(version, *cvePath)
+		uploadToGCSIfEnabled(version, *cvePath, gcsHelper)
 	}
 	downloadCVEFromDataDumps("modified", *cvePath)
+	uploadToGCSIfEnabled("modified", *cvePath, gcsHelper)
+
 	downloadCVEFromDataDumps("recent", *cvePath)
+	uploadToGCSIfEnabled("recent", *cvePath, gcsHelper)
 	// }
 }
 
@@ -187,4 +230,20 @@ func downloadCVEFromDataDumps(version string, cvePath string) {
 		logger.Fatal("Failed to write to file", slog.String("version", version), slog.Any("err", err))
 	}
 	logger.Info("Successfully downloaded CVE "+version, slog.String("version", version))
+}
+
+func uploadToGCSIfEnabled(version string, cvePath string, gcsHelper *gcs.Helper) {
+	if gcsHelper == nil {
+		return
+	}
+	fileName := fileNameBase + version + ".json"
+	filePath := path.Join(cvePath, fileName)
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		logger.Fatal("Failed to open file for GCS upload", slog.String("path", filePath), slog.Any("err", err))
+	}
+
+	objectName := path.Join(*gcsPrefix, fileName)
+	gcsHelper.Upload(objectName, f, "", "application/json")
 }

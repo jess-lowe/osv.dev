@@ -24,10 +24,10 @@ RUN go mod download
 COPY ./ /src/
 RUN go build -o download-cves ./cmd/mirrors/download-cves/
 
-FROM gcr.io/google.com/cloudsdktool/google-cloud-cli:alpine@sha256:30b3a542786ee597ddc866aaf1d5201e794be1a4c328507a0531b97ad469ea64
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
 
 WORKDIR /usr/local/bin
 COPY --from=GO_BUILD /src/download-cves ./
-COPY ./cmd/mirrors/download-cves/mirror_nvd.sh ./
 
-ENTRYPOINT ["/usr/local/bin/mirror_nvd.sh"]
+ENTRYPOINT ["/usr/local/bin/download-cves"]
