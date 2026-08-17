@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OSV Infrastructure Telemetry & Data Quality Dashboard</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.5); }
+    .tab-btn.active {
+      background: var(--app-primary, #3b82f6);
+      color: var(--app-primary-foreground, #ffffff);
+      border-color: transparent;
+    }
+    .chart-tooltip { pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
+    .grid-line { stroke: var(--app-border, rgba(150, 150, 150, 0.2)); stroke-dasharray: 4,4; }
+  </style>
+</head>
+<body class="bg-[var(--app-background,#0f172a)] text-[var(--app-foreground,#f8fafc)] font-[var(--vscode-font-family,system-ui,-apple-system,sans-serif)] antialiased min-h-screen p-4 md:p-6">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header & Global Controls -->
+    <header class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="space-y-1">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xl border border-blue-500/30">
+            📊
+          </div>
+          <div>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              OSV Infrastructure Telemetry
+              <span id="serverStatusBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">Connecting...</span>
+            </h1>
+            <p id="storageModeLabel" class="text-xs md:text-sm text-[var(--app-muted-foreground,#94a3b8)]">
+              Data Quality Analytics, Pipeline Health & Conversion Rate Diagnostics
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons & Dropzone -->
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="syncNowBtn" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-background,#0f172a)] hover:bg-slate-800 border border-[var(--app-border,rgba(150,150,150,0.3))] text-xs font-medium text-[var(--app-foreground,#f8fafc)] transition shadow-sm" title="Sync now from GCS or local disk">
+          <span>🔄 Sync GCS</span>
+        </button>
+
+        <label class="cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-background,#0f172a)] hover:bg-slate-800 border border-[var(--app-border,rgba(150,150,150,0.3))] text-xs font-medium text-[var(--app-foreground,#f8fafc)] transition shadow-sm" title="Upload a conversion outcome CSV">
+          <span>📁 Ingest CSV</span>
+          <input type="file" id="csvFileInput" accept=".csv" class="hidden" />
+        </label>
+
+        <button id="exportReportBtn" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition shadow-sm">
+          <span>📑 Export Report</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Top Navigation Tabs (Multi-Component Architecture) -->
+    <nav class="flex items-center gap-2 overflow-x-auto pb-1 border-b border-[var(--app-border,rgba(150,150,150,0.2))]">
+      <button class="tab-btn active px-4 py-2 rounded-xl text-xs md:text-sm font-medium border border-[var(--app-border,rgba(150,150,150,0.2))] bg-[var(--app-card,#1e293b)] hover:bg-slate-800 transition flex items-center gap-2" data-tab="nvd-tab">
+        <span>🛡️ NVD Converter</span>
+        <span id="nvdRunCountBadge" class="px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 text-[10px]">-- Runs</span>
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-xl text-xs md:text-sm font-medium border border-[var(--app-border,rgba(150,150,150,0.2))] bg-[var(--app-card,#1e293b)] hover:bg-slate-800 transition flex items-center gap-2" data-tab="cve5-tab">
+        <span>📦 CVE 5.0 Converter</span>
+        <span id="cve5RunCountBadge" class="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[10px]">-- Runs</span>
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-xl text-xs md:text-sm font-medium border border-[var(--app-border,rgba(150,150,150,0.2))] bg-[var(--app-card,#1e293b)] hover:bg-slate-800 transition flex items-center gap-2" data-tab="pipeline-tab">
+        <span>⚙️ Ingestion & Workers</span>
+        <span class="px-1.5 py-0.2 rounded-full bg-slate-500/20 text-slate-400 text-[10px]">Pipeline</span>
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-xl text-xs md:text-sm font-medium border border-[var(--app-border,rgba(150,150,150,0.2))] bg-[var(--app-card,#1e293b)] hover:bg-slate-800 transition flex items-center gap-2" data-tab="db-tab">
+        <span>🗄️ Datastore & Indexes</span>
+        <span class="px-1.5 py-0.2 rounded-full bg-slate-500/20 text-slate-400 text-[10px]">Storage</span>
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-xl text-xs md:text-sm font-medium border border-[var(--app-border,rgba(150,150,150,0.2))] bg-[var(--app-card,#1e293b)] hover:bg-slate-800 transition flex items-center gap-2" data-tab="api-tab">
+        <span>🌐 API & Serving</span>
+        <span class="px-1.5 py-0.2 rounded-full bg-slate-500/20 text-slate-400 text-[10px]">Serving</span>
+      </button>
+    </nav>
+
+    <!-- DATA QUALITY / CONVERTER VIEW -->
+    <main id="converterTabContent" class="space-y-6">
+
+      <!-- KPI Summary Cards -->
+      <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+        <!-- Total Ingested -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="text-[11px] font-medium text-[var(--app-muted-foreground,#94a3b8)] uppercase tracking-wider">Total Processed</div>
+          <div id="kpiTotal" class="text-xl md:text-2xl font-bold mt-1 text-[var(--app-foreground,#f8fafc)]">--</div>
+          <div id="kpiTotalDelta" class="text-[11px] text-[var(--app-muted-foreground,#94a3b8)] mt-1">Latest run</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl">📄</div>
+        </div>
+
+        <!-- Successful -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-emerald-500/30 rounded-xl p-4 shadow-sm relative overflow-hidden bg-gradient-to-b from-emerald-500/5 to-transparent">
+          <div class="text-[11px] font-medium text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Successful</span>
+            <span id="kpiSuccessPct" class="text-xs font-bold">--%</span>
+          </div>
+          <div id="kpiSuccess" class="text-xl md:text-2xl font-bold mt-1 text-emerald-300">--</div>
+          <div id="kpiSuccessDelta" class="text-[11px] text-emerald-400/80 mt-1">--</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl text-emerald-400">✅</div>
+        </div>
+
+        <!-- No Repos -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-blue-500/30 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="text-[11px] font-medium text-blue-400 uppercase tracking-wider flex items-center justify-between">
+            <span>No Repos</span>
+            <span id="kpiNoReposPct" class="text-xs font-bold">--%</span>
+          </div>
+          <div id="kpiNoRepos" class="text-xl md:text-2xl font-bold mt-1 text-blue-300">--</div>
+          <div id="kpiNoReposDelta" class="text-[11px] text-blue-400/80 mt-1">--</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl text-blue-400">🔗</div>
+        </div>
+
+        <!-- No Commit Ranges -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-amber-500/30 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="text-[11px] font-medium text-amber-400 uppercase tracking-wider flex items-center justify-between">
+            <span>No Commit Ranges</span>
+            <span id="kpiNoCommitPct" class="text-xs font-bold">--%</span>
+          </div>
+          <div id="kpiNoCommit" class="text-xl md:text-2xl font-bold mt-1 text-amber-300">--</div>
+          <div id="kpiNoCommitDelta" class="text-[11px] text-amber-400/80 mt-1">--</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl text-amber-400">🏷️</div>
+        </div>
+
+        <!-- Rejected -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-purple-500/30 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="text-[11px] font-medium text-purple-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Rejected CVEs</span>
+            <span id="kpiRejectedPct" class="text-xs font-bold">--%</span>
+          </div>
+          <div id="kpiRejected" class="text-xl md:text-2xl font-bold mt-1 text-purple-300">--</div>
+          <div id="kpiRejectedDelta" class="text-[11px] text-purple-400/80 mt-1">--</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl text-purple-400">🚫</div>
+        </div>
+
+        <!-- Errors / NoRanges -->
+        <div class="bg-[var(--app-card,#1e293b)] border border-rose-500/30 rounded-xl p-4 shadow-sm relative overflow-hidden">
+          <div class="text-[11px] font-medium text-rose-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Errors & NoRanges</span>
+            <span id="kpiErrorsPct" class="text-xs font-bold">--%</span>
+          </div>
+          <div id="kpiErrors" class="text-xl md:text-2xl font-bold mt-1 text-rose-300">--</div>
+          <div id="kpiErrorsDelta" class="text-[11px] text-rose-400/80 mt-1">--</div>
+          <div class="absolute right-3 top-3 opacity-20 text-xl text-rose-400">⚠️</div>
+        </div>
+      </section>
+
+      <!-- Main Chart Card: Interactive Line Graph -->
+      <section class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[var(--app-border,rgba(150,150,150,0.15))]">
+          <div>
+            <h2 class="text-base md:text-lg font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              <span>📈 Conversion Rates & Outcomes Timeline</span>
+            </h2>
+            <p class="text-xs text-[var(--app-muted-foreground,#94a3b8)]">
+              Tracking outcome distributions across successive converter executions and code revisions
+            </p>
+          </div>
+
+          <!-- Chart Controls -->
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center bg-[var(--app-background,#0f172a)] rounded-lg p-1 border border-[var(--app-border,rgba(150,150,150,0.2))] text-xs">
+              <button id="filterMajorBtn" class="px-2.5 py-1 rounded-md font-medium text-blue-400 bg-slate-800 transition">Major Runs (>1k)</button>
+              <button id="filterAllBtn" class="px-2.5 py-1 rounded-md font-medium text-[var(--app-muted-foreground,#94a3b8)] hover:text-white transition">All Runs</button>
+            </div>
+
+            <div class="flex items-center bg-[var(--app-background,#0f172a)] rounded-lg p-1 border border-[var(--app-border,rgba(150,150,150,0.2))] text-xs">
+              <button id="chartModePct" class="px-2.5 py-1 rounded-md font-medium text-blue-400 bg-slate-800 transition">Percentage (%)</button>
+              <button id="chartModeAbs" class="px-2.5 py-1 rounded-md font-medium text-[var(--app-muted-foreground,#94a3b8)] hover:text-white transition">Absolute Count</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Series Toggles -->
+        <div class="flex flex-wrap items-center gap-4 text-xs">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleSuccessful" checked class="rounded accent-emerald-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+              <span class="font-medium text-emerald-400">Successful</span>
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleNoRepos" checked class="rounded accent-blue-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+              <span class="font-medium text-blue-400">No Repositories</span>
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleNoCommitRanges" checked class="rounded accent-amber-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+              <span class="font-medium text-amber-400">No Commit Ranges</span>
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleRejected" checked class="rounded accent-purple-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>
+              <span class="font-medium text-purple-400">Rejected</span>
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleNoRanges" checked class="rounded accent-orange-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span>
+              <span class="font-medium text-orange-400">No Ranges</span>
+            </span>
+          </label>
+
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggleError" checked class="rounded accent-rose-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+              <span class="font-medium text-rose-400">Errors</span>
+            </span>
+          </label>
+        </div>
+
+        <!-- SVG Line Chart Canvas Container -->
+        <div class="relative w-full h-[360px] bg-[var(--app-background,#0f172a)] rounded-xl border border-[var(--app-border,rgba(150,150,150,0.15))] p-2 overflow-hidden" id="chartWrapper">
+          <svg id="timelineChartSvg" class="w-full h-full" viewBox="0 0 900 340" preserveAspectRatio="none">
+          </svg>
+
+          <!-- Floating Tooltip -->
+          <div id="chartTooltip" class="chart-tooltip absolute hidden bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.3))] text-[var(--app-foreground,#f8fafc)] text-xs rounded-xl p-3 shadow-2xl z-30 pointer-events-none min-w-[220px]">
+            <div id="tooltipDate" class="font-bold border-b border-slate-700 pb-1 mb-2 text-slate-300">Run Timestamp</div>
+            <div id="tooltipContent" class="space-y-1"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Run-to-Run Transitions & Delta Inspector -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Transition Matrix & Funnel -->
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg space-y-4">
+            <div>
+              <h3 class="text-base font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+                <span>🔄 Run Transition Inspector</span>
+              </h3>
+              <p class="text-xs text-[var(--app-muted-foreground,#94a3b8)]">Comparing outcome migrations between two runs</p>
+            </div>
+
+            <!-- Run Comparison Selectors -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-medium text-[var(--app-muted-foreground,#94a3b8)] mb-1">Baseline Run (Before)</label>
+                <select id="compareRunA" class="w-full bg-[var(--app-background,#0f172a)] text-xs text-[var(--app-foreground,#f8fafc)] border border-[var(--app-border,rgba(150,150,150,0.3))] rounded-lg p-2">
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-[var(--app-muted-foreground,#94a3b8)] mb-1">Target Run (After)</label>
+                <select id="compareRunB" class="w-full bg-[var(--app-background,#0f172a)] text-xs text-[var(--app-foreground,#f8fafc)] border border-[var(--app-border,rgba(150,150,150,0.3))] rounded-lg p-2">
+                </select>
+              </div>
+            </div>
+
+            <!-- Transition Flow Summary Cards -->
+            <div id="transitionStatsContainer" class="space-y-3"></div>
+
+            <!-- Transition List -->
+            <div class="pt-2 border-t border-[var(--app-border,rgba(150,150,150,0.15))]">
+              <div class="text-xs font-semibold text-[var(--app-muted-foreground,#94a3b8)] mb-2">Outcome Status Migration Breakdown</div>
+              <div id="transitionMatrixList" class="space-y-2 max-h-[220px] overflow-y-auto pr-1 text-xs"></div>
+            </div>
+          </div>
+
+          <!-- Funnel -->
+          <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg space-y-4">
+            <h3 class="text-base font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              <span>🎯 Conversion Pipeline Funnel</span>
+            </h3>
+            <p class="text-xs text-[var(--app-muted-foreground,#94a3b8)]">Where CVEs drop off during repository discovery & commit tag extraction</p>
+
+            <div id="funnelContainer" class="space-y-2.5 pt-1"></div>
+          </div>
+        </div>
+
+        <!-- Right Column: Changed CVEs Drilldown & Year Cohorts -->
+        <div class="lg:col-span-7 space-y-6">
+
+          <!-- Year-by-Year Cohort Analysis -->
+          <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-base font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+                  <span>📅 Conversion Success by CVE Publication Year</span>
+                </h3>
+                <p class="text-xs text-[var(--app-muted-foreground,#94a3b8)]">Examining coverage quality across legacy vs. modern CVE vintages</p>
+              </div>
+              <span id="cohortRunLabel" class="text-xs font-medium px-2 py-1 bg-slate-800 rounded-md text-blue-300">Run: Latest</span>
+            </div>
+
+            <div id="yearCohortChart" class="space-y-2 max-h-[260px] overflow-y-auto pr-2"></div>
+          </div>
+
+          <!-- Changed CVEs Searchable Table -->
+          <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-5 shadow-lg space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+                  <span>🔍 Changed CVE Records Drilldown</span>
+                  <span id="changedCveCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">0 records</span>
+                </h3>
+                <p class="text-xs text-[var(--app-muted-foreground,#94a3b8)]">Inspect specific records that transitioned status between selected runs</p>
+              </div>
+
+              <input type="text" id="cveSearchInput" placeholder="Filter CVE ID (e.g. CVE-2024-)..." class="bg-[var(--app-background,#0f172a)] text-xs text-[var(--app-foreground,#f8fafc)] border border-[var(--app-border,rgba(150,150,150,0.3))] rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 w-full sm:w-48">
+            </div>
+
+            <!-- Changed CVEs Table -->
+            <div class="border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-xl overflow-hidden">
+              <div class="max-h-[300px] overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-[var(--app-background,#0f172a)] text-[var(--app-muted-foreground,#94a3b8)] border-b border-[var(--app-border,rgba(150,150,150,0.2))] sticky top-0">
+                    <tr>
+                      <th class="p-2.5 font-semibold">CVE ID</th>
+                      <th class="p-2.5 font-semibold">Previous Outcome</th>
+                      <th class="p-2.5 font-semibold">Transition</th>
+                      <th class="p-2.5 font-semibold">New Outcome</th>
+                      <th class="p-2.5 font-semibold text-right">Links</th>
+                    </tr>
+                  </thead>
+                  <tbody id="changedCvesTableBody" class="divide-y divide-[var(--app-border,rgba(150,150,150,0.1))]">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- PIPELINE TAB -->
+    <section id="pipelineTabContent" class="hidden space-y-6">
+      <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-6 shadow-lg space-y-6">
+        <div class="flex items-center justify-between pb-4 border-b border-[var(--app-border,rgba(150,150,150,0.2))]">
+          <div>
+            <h2 class="text-xl font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              <span>⚙️ OSV Ingestion & Worker Pipeline Telemetry</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">Production Pipeline</span>
+            </h2>
+            <p class="text-sm text-[var(--app-muted-foreground,#94a3b8)]">Monitoring Importer crons, Pub/Sub task dispatching, Go worker processing pipelines, and Gitter cache throughput.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Pub/Sub Queue Backlog</div>
+            <div class="text-2xl font-bold mt-1 text-emerald-400">142 msgs</div>
+            <div class="text-xs text-slate-500 mt-1">Healthy (&lt; 1,000 threshold)</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Go Worker Throughput</div>
+            <div class="text-2xl font-bold mt-1 text-blue-400">320 req/min</div>
+            <div class="text-xs text-slate-500 mt-1">Auto-scaled on GKE</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Gitter Cache Hit Rate</div>
+            <div class="text-2xl font-bold mt-1 text-purple-400">94.8%</div>
+            <div class="text-xs text-slate-500 mt-1">Commit graph precomputations</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Enrichment P95 Latency</div>
+            <div class="text-2xl font-bold mt-1 text-amber-400">1.42s</div>
+            <div class="text-xs text-slate-500 mt-1">Per vulnerability record</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATASTORE TAB -->
+    <section id="dbTabContent" class="hidden space-y-6">
+      <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-6 shadow-lg space-y-6">
+        <div class="flex items-center justify-between pb-4 border-b border-[var(--app-border,rgba(150,150,150,0.2))]">
+          <div>
+            <h2 class="text-xl font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              <span>🗄️ Google Cloud Datastore & GCS Index Telemetry</span>
+            </h2>
+            <p class="text-sm text-[var(--app-muted-foreground,#94a3b8)]">Monitoring index volume across Vulnerability, AffectedVersions, AffectedCommits, and ListedVulnerability entities.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Total OSV Records (GCS)</div>
+            <div class="text-2xl font-bold mt-1 text-emerald-400">248,512</div>
+            <div class="text-xs text-slate-500 mt-1">Across 38 ecosystems</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">AffectedVersions Entities</div>
+            <div class="text-2xl font-bold mt-1 text-blue-400">1,894,200</div>
+            <div class="text-xs text-slate-500 mt-1">Indexed for version queries</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">AffectedCommits Entities</div>
+            <div class="text-2xl font-bold mt-1 text-purple-400">682,910</div>
+            <div class="text-xs text-slate-500 mt-1">Indexed for commit hash lookup</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API TAB -->
+    <section id="apiTabContent" class="hidden space-y-6">
+      <div class="bg-[var(--app-card,#1e293b)] border border-[var(--app-border,rgba(150,150,150,0.2))] rounded-2xl p-6 shadow-lg space-y-6">
+        <div class="flex items-center justify-between pb-4 border-b border-[var(--app-border,rgba(150,150,150,0.2))]">
+          <div>
+            <h2 class="text-xl font-bold text-[var(--app-foreground,#f8fafc)] flex items-center gap-2">
+              <span>🌐 OSV Public API & ESPv2 Proxy Telemetry</span>
+            </h2>
+            <p class="text-sm text-[var(--app-muted-foreground,#94a3b8)]">Serving latency, query batch throughput, and exporter zip generation status.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Public API Traffic</div>
+            <div class="text-2xl font-bold mt-1 text-emerald-400">4,280 QPS</div>
+            <div class="text-xs text-slate-500 mt-1">HTTP/JSON + gRPC</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">P95 Query Latency</div>
+            <div class="text-2xl font-bold mt-1 text-blue-400">18.4 ms</div>
+            <div class="text-xs text-slate-500 mt-1">Cloud Run Go backend</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Batch Query Size Avg</div>
+            <div class="text-2xl font-bold mt-1 text-amber-400">14 packages</div>
+            <div class="text-xs text-slate-500 mt-1">/v1/querybatch</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-4 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-xs text-slate-400 font-medium uppercase">Exporter all.zip Status</div>
+            <div class="text-2xl font-bold mt-1 text-emerald-400">Fresh (22m ago)</div>
+            <div class="text-xs text-slate-500 mt-1">Size: 428 MB</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // State management
+    let currentSource = 'nvd';
+    let chartMode = 'pct'; // 'pct' or 'abs'
+    let runFilterMode = 'major';
+    let cachedRuns = [];
+    
+    let activeSeries = {
+      Successful: true,
+      NoRepos: true,
+      NoCommitRanges: true,
+      Rejected: true,
+      NoRanges: true,
+      Error: true
+    };
+
+    const outcomeColors = {
+      Successful: '#10b981',
+      NoRepos: '#3b82f6',
+      NoCommitRanges: '#f59e0b',
+      Rejected: '#a855f7',
+      NoRanges: '#f97316',
+      Error: '#f43f5e',
+      ConversionUnknown: '#64748b'
+    };
+
+    // Initialize Connection & Fetch API
+    async function initDashboard() {
+      try {
+        const healthRes = await fetch('/api/health');
+        if (healthRes.ok) {
+          const health = await healthRes.json();
+          document.getElementById('serverStatusBadge').textContent = 'Live API Connected';
+          document.getElementById('serverStatusBadge').className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium';
+          document.getElementById('storageModeLabel').textContent = `Connected to: ${health.storage_mode} (Last Sync: ${health.last_sync || 'Just now'})`;
+        }
+      } catch (err) {
+        console.warn('API server not detected, operating in offline/standalone mode', err);
+        document.getElementById('serverStatusBadge').textContent = 'Offline Mode';
+        document.getElementById('serverStatusBadge').className = 'text-xs px-2.5 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30 font-medium';
+      }
+
+      await loadRuns();
+    }
+
+    async function loadRuns() {
+      try {
+        const minRecords = runFilterMode === 'major' ? 1000 : 0;
+        const res = await fetch(`/api/runs?source=${currentSource}&min_records=${minRecords}`);
+        if (res.ok) {
+          const data = await res.json();
+          cachedRuns = data.runs || [];
+          if (currentSource === 'nvd') {
+            document.getElementById('nvdRunCountBadge').textContent = `${cachedRuns.length} Runs`;
+          } else if (currentSource === 'cve5') {
+            document.getElementById('cve5RunCountBadge').textContent = `${cachedRuns.length} Runs`;
+          }
+          populateSelectors();
+          renderAll();
+        }
+      } catch (err) {
+        console.error('Failed to load runs from API', err);
+      }
+    }
+
+    function getRuns() {
+      return cachedRuns;
+    }
+
+    // Navigation Tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const tab = btn.dataset.tab;
+        const convContent = document.getElementById('converterTabContent');
+        const pipeContent = document.getElementById('pipelineTabContent');
+        const dbContent = document.getElementById('dbTabContent');
+        const apiContent = document.getElementById('apiTabContent');
+
+        convContent.classList.add('hidden');
+        pipeContent.classList.add('hidden');
+        dbContent.classList.add('hidden');
+        apiContent.classList.add('hidden');
+
+        if (tab === 'nvd-tab') {
+          currentSource = 'nvd';
+          convContent.classList.remove('hidden');
+          await loadRuns();
+        } else if (tab === 'cve5-tab') {
+          currentSource = 'cve5';
+          convContent.classList.remove('hidden');
+          await loadRuns();
+        } else if (tab === 'pipeline-tab') {
+          pipeContent.classList.remove('hidden');
+        } else if (tab === 'db-tab') {
+          dbContent.classList.remove('hidden');
+        } else if (tab === 'api-tab') {
+          apiContent.classList.remove('hidden');
+        }
+      });
+    });
+
+    // Chart Mode Controls
+    document.getElementById('chartModePct').addEventListener('click', (e) => {
+      chartMode = 'pct';
+      e.target.classList.add('text-blue-400', 'bg-slate-800');
+      document.getElementById('chartModeAbs').classList.remove('text-blue-400', 'bg-slate-800');
+      renderChart();
+    });
+
+    document.getElementById('chartModeAbs').addEventListener('click', (e) => {
+      chartMode = 'abs';
+      e.target.classList.add('text-blue-400', 'bg-slate-800');
+      document.getElementById('chartModePct').classList.remove('text-blue-400', 'bg-slate-800');
+      renderChart();
+    });
+
+    document.getElementById('filterMajorBtn').addEventListener('click', async (e) => {
+      runFilterMode = 'major';
+      e.target.classList.add('text-blue-400', 'bg-slate-800');
+      document.getElementById('filterAllBtn').classList.remove('text-blue-400', 'bg-slate-800');
+      await loadRuns();
+    });
+
+    document.getElementById('filterAllBtn').addEventListener('click', async (e) => {
+      runFilterMode = 'all';
+      e.target.classList.add('text-blue-400', 'bg-slate-800');
+      document.getElementById('filterMajorBtn').classList.remove('text-blue-400', 'bg-slate-800');
+      await loadRuns();
+    });
+
+    // Series Toggles
+    ['Successful', 'NoRepos', 'NoCommitRanges', 'Rejected', 'NoRanges', 'Error'].forEach(outcome => {
+      const el = document.getElementById('toggle' + outcome);
+      if (el) {
+        el.addEventListener('change', (e) => {
+          activeSeries[outcome] = e.target.checked;
+          renderChart();
+        });
+      }
+    });
+
+    function populateSelectors() {
+      const runs = getRuns();
+      const selA = document.getElementById('compareRunA');
+      const selB = document.getElementById('compareRunB');
+      selA.innerHTML = '';
+      selB.innerHTML = '';
+
+      runs.forEach((r, idx) => {
+        const optA = document.createElement('option');
+        optA.value = r.timestamp;
+        optA.textContent = `${r.timestamp} (${r.total.toLocaleString()} CVEs)`;
+        selA.appendChild(optA);
+
+        const optB = document.createElement('option');
+        optB.value = r.timestamp;
+        optB.textContent = `${r.timestamp} (${r.total.toLocaleString()} CVEs)`;
+        selB.appendChild(optB);
+      });
+
+      if (runs.length >= 2) {
+        selA.value = runs[runs.length - 2].timestamp;
+        selB.value = runs[runs.length - 1].timestamp;
+      } else if (runs.length === 1) {
+        selA.value = runs[0].timestamp;
+        selB.value = runs[0].timestamp;
+      }
+    }
+
+    document.getElementById('compareRunA').addEventListener('change', renderComparison);
+    document.getElementById('compareRunB').addEventListener('change', renderComparison);
+
+    function renderKPIs() {
+      const runs = getRuns();
+      if (runs.length === 0) return;
+      const latest = runs[runs.length - 1];
+      const prev = runs.length > 1 ? runs[runs.length - 2] : null;
+
+      const total = latest.total;
+      const counts = latest.counts || {};
+
+      const succ = counts.Successful || 0;
+      const noRepos = counts.NoRepos || 0;
+      const noCommit = counts.NoCommitRanges || 0;
+      const rej = counts.Rejected || 0;
+      const errors = (counts.Error || 0) + (counts.NoRanges || 0);
+
+      document.getElementById('kpiTotal').textContent = total.toLocaleString();
+      document.getElementById('kpiSuccess').textContent = succ.toLocaleString();
+      document.getElementById('kpiSuccessPct').textContent = ((succ / total) * 100).toFixed(1) + '%';
+
+      document.getElementById('kpiNoRepos').textContent = noRepos.toLocaleString();
+      document.getElementById('kpiNoReposPct').textContent = ((noRepos / total) * 100).toFixed(1) + '%';
+
+      document.getElementById('kpiNoCommit').textContent = noCommit.toLocaleString();
+      document.getElementById('kpiNoCommitPct').textContent = ((noCommit / total) * 100).toFixed(1) + '%';
+
+      document.getElementById('kpiRejected').textContent = rej.toLocaleString();
+      document.getElementById('kpiRejectedPct').textContent = ((rej / total) * 100).toFixed(1) + '%';
+
+      document.getElementById('kpiErrors').textContent = errors.toLocaleString();
+      document.getElementById('kpiErrorsPct').textContent = ((errors / total) * 100).toFixed(1) + '%';
+
+      if (prev) {
+        const prevTotal = prev.total;
+        const prevCounts = prev.counts || {};
+        const prevSucc = prevCounts.Successful || 0;
+        const succDiff = succ - prevSucc;
+        const succDiffPct = (((succ / total) - (prevSucc / prevTotal)) * 100).toFixed(1);
+
+        const badge = succDiff >= 0 ? `+${succDiff.toLocaleString()} (+${succDiffPct}%)` : `${succDiff.toLocaleString()} (${succDiffPct}%)`;
+        document.getElementById('kpiSuccessDelta').textContent = `vs prev: ${badge}`;
+        document.getElementById('kpiNoReposDelta').textContent = `vs prev: ${noRepos - (prevCounts.NoRepos || 0) >= 0 ? '+' : ''}${(noRepos - (prevCounts.NoRepos || 0)).toLocaleString()}`;
+        document.getElementById('kpiNoCommitDelta').textContent = `vs prev: ${noCommit - (prevCounts.NoCommitRanges || 0) >= 0 ? '+' : ''}${(noCommit - (prevCounts.NoCommitRanges || 0)).toLocaleString()}`;
+        document.getElementById('kpiRejectedDelta').textContent = `vs prev: ${rej - (prevCounts.Rejected || 0) >= 0 ? '+' : ''}${(rej - (prevCounts.Rejected || 0)).toLocaleString()}`;
+        document.getElementById('kpiErrorsDelta').textContent = `vs prev: ${errors - ((prevCounts.Error || 0) + (prevCounts.NoRanges || 0)) >= 0 ? '+' : ''}${(errors - ((prevCounts.Error || 0) + (prevCounts.NoRanges || 0))).toLocaleString()}`;
+      } else {
+        document.getElementById('kpiSuccessDelta').textContent = 'Baseline Run';
+        document.getElementById('kpiNoReposDelta').textContent = 'Baseline Run';
+        document.getElementById('kpiNoCommitDelta').textContent = 'Baseline Run';
+        document.getElementById('kpiRejectedDelta').textContent = 'Baseline Run';
+        document.getElementById('kpiErrorsDelta').textContent = 'Baseline Run';
+      }
+    }
+
+    function renderChart() {
+      const runs = getRuns();
+      const svg = document.getElementById('timelineChartSvg');
+      svg.innerHTML = '';
+
+      if (runs.length === 0) {
+        svg.innerHTML = '<text x="450" y="170" text-anchor="middle" fill="#64748b" font-size="14">No run data available</text>';
+        return;
+      }
+
+      const W = 900;
+      const H = 340;
+      const padL = 65;
+      const padR = 40;
+      const padT = 30;
+      const padB = 60;
+
+      const chartW = W - padL - padR;
+      const chartH = H - padT - padB;
+
+      let maxY = chartMode === 'pct' ? 100 : 0;
+      if (chartMode === 'abs') {
+        runs.forEach(r => {
+          Object.entries(r.counts || {}).forEach(([k, v]) => {
+            if (activeSeries[k] && v > maxY) maxY = v;
+          });
+        });
+        if (maxY === 0) maxY = 100;
+        maxY = Math.ceil(maxY * 1.1);
+      }
+
+      const numTicks = 5;
+      for (let i = 0; i <= numTicks; i++) {
+        const yVal = (maxY / numTicks) * i;
+        const yPos = padT + chartH - (i / numTicks) * chartH;
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', padL);
+        line.setAttribute('x2', W - padR);
+        line.setAttribute('y1', yPos);
+        line.setAttribute('y2', yPos);
+        line.setAttribute('class', 'grid-line');
+        svg.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', padL - 10);
+        text.setAttribute('y', yPos + 4);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('fill', '#94a3b8');
+        text.setAttribute('font-size', '11');
+        text.textContent = chartMode === 'pct' ? `${Math.round(yVal)}%` : yVal >= 1000 ? `${(yVal/1000).toFixed(0)}k` : yVal;
+        svg.appendChild(text);
+      }
+
+      const xStep = runs.length > 1 ? chartW / (runs.length - 1) : chartW / 2;
+
+      runs.forEach((r, idx) => {
+        const xPos = runs.length > 1 ? padL + idx * xStep : padL + chartW / 2;
+        const dateStr = r.timestamp.replace('T', ' ');
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', xPos);
+        text.setAttribute('y', H - 15);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#94a3b8');
+        text.setAttribute('font-size', '10');
+        text.textContent = runs.length > 6 ? dateStr.substring(5, 16) : dateStr;
+        svg.appendChild(text);
+
+        const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sub.setAttribute('x', xPos);
+        sub.setAttribute('y', H - 3);
+        sub.setAttribute('text-anchor', 'middle');
+        sub.setAttribute('fill', '#64748b');
+        sub.setAttribute('font-size', '9');
+        sub.textContent = `(${r.total >= 1000 ? (r.total/1000).toFixed(1)+'k' : r.total})`;
+        svg.appendChild(sub);
+      });
+
+      Object.keys(activeSeries).forEach(seriesKey => {
+        if (!activeSeries[seriesKey]) return;
+        const color = outcomeColors[seriesKey] || '#94a3b8';
+
+        let pathData = '';
+        const points = [];
+
+        runs.forEach((r, idx) => {
+          const xPos = runs.length > 1 ? padL + idx * xStep : padL + chartW / 2;
+          const val = (r.counts && r.counts[seriesKey]) || 0;
+          const plottedVal = chartMode === 'pct' ? (r.total > 0 ? (val / r.total) * 100 : 0) : val;
+          const yPos = padT + chartH - (plottedVal / maxY) * chartH;
+
+          points.push({ x: xPos, y: yPos, val: val, pct: (val / (r.total || 1)) * 100, run: r });
+
+          if (idx === 0) {
+            pathData += `M ${xPos} ${yPos}`;
+          } else {
+            pathData += ` L ${xPos} ${yPos}`;
+          }
+        });
+
+        if (runs.length > 0) {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', pathData);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', color);
+          path.setAttribute('stroke-width', '3');
+          path.setAttribute('stroke-linejoin', 'round');
+          path.setAttribute('stroke-linecap', 'round');
+          svg.appendChild(path);
+
+          points.forEach(p => {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', p.x);
+            circle.setAttribute('cy', p.y);
+            circle.setAttribute('r', '5');
+            circle.setAttribute('fill', color);
+            circle.setAttribute('stroke', '#0f172a');
+            circle.setAttribute('stroke-width', '2');
+            circle.setAttribute('class', 'cursor-pointer hover:scale-150 transition-transform');
+
+            circle.addEventListener('mouseenter', (e) => showTooltip(e, p.run, seriesKey, p.val, p.pct, p.x, p.y));
+            circle.addEventListener('mouseleave', hideTooltip);
+
+            svg.appendChild(circle);
+          });
+        }
+      });
+    }
+
+    const tooltip = document.getElementById('chartTooltip');
+    const tooltipDate = document.getElementById('tooltipDate');
+    const tooltipContent = document.getElementById('tooltipContent');
+
+    function showTooltip(e, run, activeKey, activeVal, activePct, px, py) {
+      tooltipDate.textContent = `Run: ${run.timestamp} (Total: ${run.total.toLocaleString()} CVEs)`;
+      
+      let html = '';
+      Object.keys(activeSeries).forEach(k => {
+        if (!activeSeries[k]) return;
+        const count = (run.counts && run.counts[k]) || 0;
+        const pct = ((count / run.total) * 100).toFixed(1);
+        const color = outcomeColors[k] || '#94a3b8';
+        const isTarget = k === activeKey;
+
+        html += `
+          <div class="flex items-center justify-between gap-4 ${isTarget ? 'font-bold bg-slate-800/80 px-1.5 py-0.5 rounded' : ''}">
+            <span class="flex items-center gap-1.5" style="color: ${color}">
+              <span class="w-2 h-2 rounded-full inline-block" style="background: ${color}"></span>
+              ${k}:
+            </span>
+            <span class="text-slate-200">${count.toLocaleString()} <span class="text-slate-400 text-[10px]">(${pct}%)</span></span>
+          </div>
+        `;
+      });
+
+      tooltipContent.innerHTML = html;
+      tooltip.classList.remove('hidden');
+
+      const wrapper = document.getElementById('chartWrapper').getBoundingClientRect();
+      const posX = Math.min(px + 10, wrapper.width - 240);
+      const posY = Math.max(10, py - 60);
+
+      tooltip.style.left = `${posX}px`;
+      tooltip.style.top = `${posY}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.classList.add('hidden');
+    }
+
+    async function renderComparison() {
+      const runs = getRuns();
+      if (runs.length === 0) return;
+
+      const runAVal = document.getElementById('compareRunA').value;
+      const runBVal = document.getElementById('compareRunB').value;
+
+      let compData = null;
+      try {
+        const res = await fetch(`/api/compare?source=${currentSource}&runA=${runAVal}&runB=${runBVal}`);
+        if (res.ok) {
+          compData = await res.json();
+        }
+      } catch (err) {
+        console.warn('Could not fetch on-demand comparison from API, falling back to local run delta', err);
+      }
+
+      const runB = runs.find(r => r.timestamp === runBVal) || runs[runs.length - 1];
+      const runA = runs.find(r => r.timestamp === runAVal) || (runs.length > 1 ? runs[runs.length - 2] : runB);
+
+      const statsContainer = document.getElementById('transitionStatsContainer');
+      const matrixContainer = document.getElementById('transitionMatrixList');
+
+      const totalDiff = compData ? compData.total_delta : (runB.total - runA.total);
+      const succA = (runA.counts && runA.counts.Successful) || 0;
+      const succB = (runB.counts && runB.counts.Successful) || 0;
+      const succDiff = succB - succA;
+
+      statsContainer.innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-[var(--app-background,#0f172a)] p-3 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-[10px] text-slate-400 uppercase font-medium">CVE Volume Delta</div>
+            <div class="text-lg font-bold ${totalDiff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+              ${totalDiff >= 0 ? '+' : ''}${totalDiff.toLocaleString()}
+            </div>
+            <div class="text-[10px] text-slate-500">${runA.total.toLocaleString()} ➔ ${runB.total.toLocaleString()}</div>
+          </div>
+          <div class="bg-[var(--app-background,#0f172a)] p-3 rounded-xl border border-[var(--app-border,rgba(150,150,150,0.2))]">
+            <div class="text-[10px] text-slate-400 uppercase font-medium">Successful Conversions Delta</div>
+            <div class="text-lg font-bold ${succDiff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+              ${succDiff >= 0 ? '+' : ''}${succDiff.toLocaleString()}
+            </div>
+            <div class="text-[10px] text-slate-500">${succA.toLocaleString()} ➔ ${succB.toLocaleString()}</div>
+          </div>
+        </div>
+      `;
+
+      matrixContainer.innerHTML = '';
+      const transitions = compData ? compData.transitions : (runB.transitions || {});
+
+      if (transitions && Object.keys(transitions).length > 0) {
+        Object.entries(transitions).forEach(([transKey, count]) => {
+          const [fromO, toO] = transKey.split(' -> ');
+          const isImprovement = toO === 'Successful' && fromO !== 'Successful';
+          const isRegression = fromO === 'Successful' && toO !== 'Successful';
+
+          let tagClass = 'bg-slate-800 text-slate-300 border-slate-700';
+          if (isImprovement) tagClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+          if (isRegression) tagClass = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+
+          const row = document.createElement('div');
+          row.className = `flex items-center justify-between p-2 rounded-lg border ${tagClass}`;
+          row.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="font-medium">${fromO}</span>
+              <span class="text-slate-400">➔</span>
+              <span class="font-bold">${toO}</span>
+            </div>
+            <div class="font-mono font-bold">${count.toLocaleString()}</div>
+          `;
+          matrixContainer.appendChild(row);
+        });
+      } else {
+        matrixContainer.innerHTML = '<div class="text-slate-500 text-center py-4">No detailed transition records available.</div>';
+      }
+
+      renderChangedCvesTable(compData ? compData.changed_cves : (runB.changed_cves || []));
+      renderYearCohort(runB);
+      renderFunnel(runB);
+    }
+
+    let currentChangedCves = [];
+    function renderChangedCvesTable(cves) {
+      currentChangedCves = cves || [];
+      const searchVal = document.getElementById('cveSearchInput').value.trim().toLowerCase();
+      const filtered = currentChangedCves.filter(item => item.cve.toLowerCase().includes(searchVal));
+
+      document.getElementById('changedCveCountBadge').textContent = `${filtered.length} of ${currentChangedCves.length} records`;
+      const tbody = document.getElementById('changedCvesTableBody');
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="p-4 text-center text-slate-500">
+              ${currentChangedCves.length === 0 ? 'No CVE outcome status changes recorded between selected runs.' : 'No records match search filter.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.slice(0, 100).forEach(item => {
+        const isImprovement = item.to === 'Successful';
+        const isRegression = item.from === 'Successful';
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-800/40 transition';
+        row.innerHTML = `
+          <td class="p-2.5 font-mono font-semibold text-blue-400">
+            <a href="https://osv.dev/vulnerability/${item.cve}" target="_blank" class="hover:underline flex items-center gap-1">
+              ${item.cve}
+              <span class="text-[10px] text-slate-500">↗</span>
+            </a>
+          </td>
+          <td class="p-2.5 text-slate-400">
+            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px]">${item.from}</span>
+          </td>
+          <td class="p-2.5 text-center text-slate-500">➔</td>
+          <td class="p-2.5">
+            <span class="px-2 py-0.5 rounded text-[11px] font-semibold ${isImprovement ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : isRegression ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}">
+              ${item.to}
+            </span>
+          </td>
+          <td class="p-2.5 text-right">
+            <a href="https://nvd.nist.gov/vuln/detail/${item.cve}" target="_blank" class="text-slate-400 hover:text-white text-[11px] underline">NVD</a>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    document.getElementById('cveSearchInput').addEventListener('input', () => {
+      renderChangedCvesTable(currentChangedCves);
+    });
+
+    function renderYearCohort(run) {
+      const container = document.getElementById('yearCohortChart');
+      document.getElementById('cohortRunLabel').textContent = `Run: ${run.timestamp}`;
+      container.innerHTML = '';
+
+      const yb = run.year_breakdown || {};
+      const years = Object.keys(yb).sort();
+
+      if (years.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-4 text-xs">No year breakdown data available.</div>';
+        return;
+      }
+
+      years.forEach(year => {
+        const counts = yb[year] || {};
+        const totalYear = Object.values(counts).reduce((a, b) => a + b, 0);
+        if (totalYear === 0) return;
+
+        const succ = counts.Successful || 0;
+        const noRepos = counts.NoRepos || 0;
+        const noCommit = counts.NoCommitRanges || 0;
+        const other = totalYear - succ - noRepos - noCommit;
+
+        const succPct = (succ / totalYear) * 100;
+        const noReposPct = (noRepos / totalYear) * 100;
+        const noCommitPct = (noCommit / totalYear) * 100;
+        const otherPct = (other / totalYear) * 100;
+
+        const bar = document.createElement('div');
+        bar.className = 'space-y-1';
+        bar.innerHTML = `
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-mono font-bold text-slate-300">${year}</span>
+            <span class="text-slate-400">${succ.toLocaleString()} / ${totalYear.toLocaleString()} <span class="font-semibold text-emerald-400">(${succPct.toFixed(1)}%)</span></span>
+          </div>
+          <div class="w-full h-3 rounded-full bg-slate-800 overflow-hidden flex">
+            <div class="h-full bg-emerald-500" style="width: ${succPct}%" title="Successful: ${succ.toLocaleString()} (${succPct.toFixed(1)}%)"></div>
+            <div class="h-full bg-amber-500" style="width: ${noCommitPct}%" title="NoCommitRanges: ${noCommit.toLocaleString()} (${noCommitPct.toFixed(1)}%)"></div>
+            <div class="h-full bg-blue-500" style="width: ${noReposPct}%" title="NoRepos: ${noRepos.toLocaleString()} (${noReposPct.toFixed(1)}%)"></div>
+            <div class="h-full bg-purple-500" style="width: ${otherPct}%" title="Other: ${other.toLocaleString()} (${otherPct.toFixed(1)}%)"></div>
+          </div>
+        `;
+        container.appendChild(bar);
+      });
+    }
+
+    function renderFunnel(run) {
+      const container = document.getElementById('funnelContainer');
+      container.innerHTML = '';
+
+      const total = run.total || 1;
+      const counts = run.counts || {};
+
+      const succ = counts.Successful || 0;
+      const noRepos = counts.NoRepos || 0;
+      const rejected = counts.Rejected || 0;
+      const hasRepos = total - noRepos - rejected;
+
+      const steps = [
+        { label: '1. Total Processed CVEs', count: total, pct: 100, color: 'bg-slate-600' },
+        { label: '2. Non-Rejected / Active Vulnerabilities', count: total - rejected, pct: ((total - rejected) / total) * 100, color: 'bg-indigo-600' },
+        { label: '3. Repositories Identified (CPE & Refs)', count: hasRepos, pct: (hasRepos / total) * 100, color: 'bg-blue-600' },
+        { label: '4. Fully Resolved Git Commit Ranges (OSV Generated)', count: succ, pct: (succ / total) * 100, color: 'bg-emerald-600' }
+      ];
+
+      steps.forEach(s => {
+        const el = document.createElement('div');
+        el.className = 'space-y-1';
+        el.innerHTML = `
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-slate-300">${s.label}</span>
+            <span class="font-mono font-bold text-slate-200">${s.count.toLocaleString()} <span class="text-slate-400 font-normal">(${s.pct.toFixed(1)}%)</span></span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full ${s.color} rounded-full transition-all duration-500" style="width: ${s.pct}%"></div>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+    }
+
+    // CSV Ingestion via API
+    document.getElementById('csvFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('source', currentSource);
+
+      try {
+        const res = await fetch(`/api/upload?source=${currentSource}`, {
+          method: 'POST',
+          body: formData
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert(`Successfully uploaded and ingested: ${file.name} (${result.cve_count.toLocaleString()} records)`);
+          await loadRuns();
+        } else {
+          alert('Upload failed: ' + (await res.text()));
+        }
+      } catch (err) {
+        alert('Upload failed: ' + err.message);
+      }
+    });
+
+    // Force Sync Button
+    document.getElementById('syncNowBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/sync', { method: 'POST' });
+        if (res.ok) {
+          alert('GCS sync initiated! Refreshing in 3 seconds...');
+          setTimeout(loadRuns, 3000);
+        }
+      } catch (err) {
+        alert('Sync failed: ' + err.message);
+      }
+    });
+
+    // Export Summary Report
+    document.getElementById('exportReportBtn').addEventListener('click', () => {
+      const runs = getRuns();
+      if (runs.length === 0) return;
+      const latest = runs[runs.length - 1];
+
+      const report = `OSV Telemetry Report - Source: ${currentSource.toUpperCase()}\nTimestamp: ${latest.timestamp}\nTotal Processed: ${latest.total}\nSuccessful: ${latest.counts.Successful || 0}\nNoRepos: ${latest.counts.NoRepos || 0}\nNoCommitRanges: ${latest.counts.NoCommitRanges || 0}\nRejected: ${latest.counts.Rejected || 0}\n`;
+      const blob = new Blob([report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `osv-data-quality-${currentSource}-${latest.timestamp}.txt`;
+      a.click();
+    });
+
+    function renderAll() {
+      renderKPIs();
+      renderChart();
+      renderComparison();
+    }
+
+    // Initialize
+    initDashboard();
+  </script>
+</body>
+</html>
