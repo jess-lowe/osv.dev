@@ -3,6 +3,7 @@ package cve5
 import (
 	"cmp"
 	"maps"
+	"net/http"
 	"slices"
 
 	c "github.com/google/osv.dev/vulnfeeds/conversion"
@@ -49,10 +50,8 @@ func (d *DefaultVersionExtractor) handleAffected(affected []models.Affected, met
 }
 
 // ExtractVersions for DefaultVersionExtractor.
-func (d *DefaultVersionExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string) {
+func (d *DefaultVersionExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string, cache git.RepoTagsCache, httpClient *http.Client) {
 	gotVersions := false
-
-	repoTagsCache := git.NewRepoTagsCache()
 
 	ranges := d.handleAffected(cve.Containers.CNA.Affected, metrics)
 	successfulRepos := make(map[string]bool)
@@ -60,7 +59,7 @@ func (d *DefaultVersionExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vuln
 	var unresolvedRanges []models.RangeWithMetadata
 
 	processRanges := func(nr []models.RangeWithMetadata) bool {
-		r, un, sR := c.ProcessRanges(nr, repos, metrics, repoTagsCache)
+		r, un, sR := c.ProcessRanges(nr, repos, metrics, cache, httpClient)
 		resolvedRanges = append(resolvedRanges, r...)
 		unresolvedRanges = append(unresolvedRanges, un...)
 		for _, s := range sR {

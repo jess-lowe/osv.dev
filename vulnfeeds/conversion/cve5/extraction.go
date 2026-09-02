@@ -1,15 +1,17 @@
 package cve5
 
 import (
+	"net/http"
 	"strings"
 
+	"github.com/google/osv.dev/vulnfeeds/git"
 	"github.com/google/osv.dev/vulnfeeds/models"
 	"github.com/google/osv.dev/vulnfeeds/vulns"
 )
 
 // VersionExtractor defines the interface for different version extraction strategies.
 type VersionExtractor interface {
-	ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string)
+	ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string, cache git.RepoTagsCache, httpClient *http.Client)
 	FindNormalAffectedRanges(affected models.Affected, metrics *models.ConversionMetrics) ([]models.RangeWithMetadata, VersionRangeType)
 }
 
