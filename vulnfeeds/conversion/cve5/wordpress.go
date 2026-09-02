@@ -1,13 +1,15 @@
 package cve5
 
 import (
+	"net/http"
 	"regexp"
 	"slices"
 	"strings"
 
-	c "github.com/google/osv/vulnfeeds/conversion"
-	"github.com/google/osv/vulnfeeds/models"
-	"github.com/google/osv/vulnfeeds/vulns"
+	c "github.com/google/osv.dev/vulnfeeds/conversion"
+	"github.com/google/osv.dev/vulnfeeds/git"
+	"github.com/google/osv.dev/vulnfeeds/models"
+	"github.com/google/osv.dev/vulnfeeds/vulns"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 )
 
@@ -65,25 +67,39 @@ func extractWordPressSlugAndEcosystem(cve models.CVE5, v *vulns.Vulnerability) (
 
 		if match := wpPluginTracRegex.FindStringSubmatch(url); match != nil {
 			tracSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Plugin" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Plugin"
+			}
 		} else if match := wpPluginSvnRegex.FindStringSubmatch(url); match != nil {
 			svnSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Plugin" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Plugin"
+			}
 		} else if match := wordfencePluginRegex.FindStringSubmatch(url); match != nil {
 			wordfenceSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Plugin" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Plugin"
+			}
 		} else if match := wpPluginOrgRegex.FindStringSubmatch(url); match != nil {
 			wpOrgPluginSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Plugin" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Plugin"
+			}
 		} else if match := wpThemeOrgRegex.FindStringSubmatch(url); match != nil {
 			wpOrgThemeSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Theme" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Theme"
+			}
 		} else if match := patchstackPluginRegex.FindStringSubmatch(url); match != nil {
 			patchstackPluginSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Plugin" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Plugin"
+			}
 		} else if match := patchstackThemeRegex.FindStringSubmatch(url); match != nil {
 			patchstackThemeSlug = match[1]
-			if urlEcosystem == "" { urlEcosystem = "WordPress:Theme" }
+			if urlEcosystem == "" {
+				urlEcosystem = "WordPress:Theme"
+			}
 		} else if match := patchstackVulnRegex.FindStringSubmatch(url); match != nil {
 			patchstackVulnSlug = match[1]
 		}
@@ -164,13 +180,13 @@ type WordpressExtractor struct {
 
 var _ VersionExtractor = &WordpressExtractor{}
 
-func (w *WordpressExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string) {
+func (w *WordpressExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, repos []string, cache git.RepoTagsCache, httpClient *http.Client) {
 	if w.Handler != nil {
 		w.Handler.PreExtract(&cve)
 	}
 
 	// 1. Run default extraction first
-	w.DefaultVersionExtractor.ExtractVersions(cve, v, metrics, repos)
+	w.DefaultVersionExtractor.ExtractVersions(cve, v, metrics, repos, cache, httpClient)
 
 	// 2. Extract slug and determine ecosystem using shared helper
 	slug, ecosystem := extractWordPressSlugAndEcosystem(cve, v)
@@ -283,7 +299,8 @@ func (w *WordpressExtractor) ExtractVersions(cve models.CVE5, v *vulns.Vulnerabi
 type DefaultWordpressHandler struct{}
 
 func (d *DefaultWordpressHandler) PreExtract(cve *models.CVE5) {}
-func (d *DefaultWordpressHandler) PostExtractDefault(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, slug string, ecosystem string) {}
+func (d *DefaultWordpressHandler) PostExtractDefault(cve models.CVE5, v *vulns.Vulnerability, metrics *models.ConversionMetrics, slug string, ecosystem string) {
+}
 
 // WordfenceHandler implements Wordfence specific quirks.
 type WordfenceHandler struct {
@@ -341,4 +358,3 @@ func (p *PatchstackHandler) PostExtractDefault(cve models.CVE5, v *vulns.Vulnera
 type WPScanHandler struct {
 	DefaultWordpressHandler
 }
-
