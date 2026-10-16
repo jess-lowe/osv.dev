@@ -15,9 +15,13 @@
 package recoverer
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -50,16 +54,18 @@ func (r *Recoverer) StartMetricsCollector(ctx context.Context, interval time.Dur
 
 // CollectMetrics performs a single collection pass of batch/state metrics from Datastore and GCS.
 func (r *Recoverer) CollectMetrics(ctx context.Context) {
-	prefixToSource := r.collectSourceFreshnessAndPrefixes(ctx)
+	prefixToSource, cveConversionBucket := r.collectSourceFreshnessAndPrefixes(ctx)
 	r.collectJobDataMetrics(ctx, prefixToSource)
 	r.collectLinterFindingsMetrics(ctx, prefixToSource)
 	r.collectDatasetAndExportMetrics(ctx)
+	r.collectCVEConversionMetrics(ctx, cveConversionBucket)
 }
 
-func (r *Recoverer) collectSourceFreshnessAndPrefixes(ctx context.Context) map[string]string {
+func (r *Recoverer) collectSourceFreshnessAndPrefixes(ctx context.Context) (map[string]string, string) {
 	prefixToSource := make(map[string]string)
+	var cveConversionBucket string
 	if r.stores.SourceRepo == nil {
-		return prefixToSource
+		return prefixToSource, ""
 	}
 
 	for source, err := range r.stores.SourceRepo.All(ctx) {
@@ -69,6 +75,9 @@ func (r *Recoverer) collectSourceFreshnessAndPrefixes(ctx context.Context) map[s
 		}
 		for _, p := range source.IDPrefixes {
 			prefixToSource[p] = source.Name
+		}
+		if source.Name == "cve-osv" && source.Bucket != nil && source.Bucket.Name != "" {
+			cveConversionBucket = source.Bucket.Name
 		}
 
 		var lastUpdated time.Time
@@ -82,7 +91,7 @@ func (r *Recoverer) collectSourceFreshnessAndPrefixes(ctx context.Context) map[s
 		}
 	}
 
-	return prefixToSource
+	return prefixToSource, cveConversionBucket
 }
 
 func (r *Recoverer) collectJobDataMetrics(ctx context.Context, prefixToSource map[string]string) {
@@ -280,5 +289,137 @@ func (r *Recoverer) collectDatasetAndExportMetrics(ctx context.Context) {
 			}
 			metrics.DatasetTotalVulnerabilities.WithLabelValues(eco).Set(float64(count))
 		}
+	}
+}
+
+type cnaScorecardSummary struct {
+	CNA       string         `json:"cna"`
+	TotalCVEs int            `json:"total_cves"`
+	Outcomes  map[string]int `json:"outcomes"`
+}
+
+type conversionSummaryPayload struct {
+	Converter        string                `json:"converter"`
+	OutcomeCounts    map[string]int        `json:"outcome_counts"`
+	VersionSources   map[string]int        `json:"version_sources"`
+	ReferenceTypes   map[string]int        `json:"reference_types"`
+	ResolvedRanges   int                   `json:"resolved_ranges"`
+	UnresolvedRanges int                   `json:"unresolved_ranges"`
+	CNAScorecards    []cnaScorecardSummary `json:"cna_scorecards"`
+}
+
+func (r *Recoverer) collectCVEConversionMetrics(ctx context.Context, discoveredBucket string) {
+	if r.stores.GCSProvider == nil {
+		return
+	}
+
+	bucketName := os.Getenv("OSV_CVE_CONVERSION_BUCKET")
+	if bucketName == "" {
+		bucketName = discoveredBucket
+	}
+	if bucketName == "" {
+		bucketName = "osv-test-cve-osv-conversion"
+	}
+
+	bkt := r.stores.GCSProvider.Bucket(bucketName)
+	if bkt == nil {
+		return
+	}
+
+	converters := []struct {
+		name           string
+		outcomesPrefix string
+	}{
+		{name: "cve5", outcomesPrefix: "metadata/cve5/outcomes"},
+		{name: "nvd", outcomesPrefix: "metadata/nvd/outcomes"},
+	}
+
+	for _, conv := range converters {
+		summaryPath := conv.outcomesPrefix + "/conversion-summary.json"
+		data, err := bkt.ReadObject(ctx, summaryPath)
+		if err == nil {
+			var summary conversionSummaryPayload
+			if unmarshalErr := json.Unmarshal(data, &summary); unmarshalErr != nil {
+				logger.WarnContext(ctx, "metrics_collector: failed to unmarshal conversion-summary.json",
+					slog.String("converter", conv.name), slog.Any("error", unmarshalErr))
+				continue
+			}
+
+			for outcome, cnt := range summary.OutcomeCounts {
+				metrics.CVEConversionOutcomesTotal.WithLabelValues(conv.name, outcome).Set(float64(cnt))
+			}
+			for src, cnt := range summary.VersionSources {
+				metrics.CVERangeSourcesTotal.WithLabelValues(conv.name, src).Set(float64(cnt))
+			}
+			for refType, cnt := range summary.ReferenceTypes {
+				metrics.CVEReferenceTypesTotal.WithLabelValues(conv.name, refType).Set(float64(cnt))
+			}
+			metrics.CVEResolvedRangesTotal.WithLabelValues(conv.name, "resolved").Set(float64(summary.ResolvedRanges))
+			metrics.CVEResolvedRangesTotal.WithLabelValues(conv.name, "unresolved").Set(float64(summary.UnresolvedRanges))
+
+			if conv.name == "cve5" && len(summary.CNAScorecards) > 0 {
+				metrics.CVECNAOutcomesTotal.Reset()
+				limit := min(len(summary.CNAScorecards), 50)
+				for _, card := range summary.CNAScorecards[:limit] {
+					for outcome, cnt := range card.Outcomes {
+						metrics.CVECNAOutcomesTotal.WithLabelValues(card.CNA, outcome).Set(float64(cnt))
+					}
+				}
+			}
+
+			continue
+		}
+
+		if !errors.Is(err, clients.ErrNotFound) {
+			logger.WarnContext(ctx, "metrics_collector: failed to read conversion-summary.json",
+				slog.String("converter", conv.name), slog.Any("error", err))
+			continue
+		}
+
+		// Fallback to latest outcomes CSV if conversion-summary.json has not been generated yet.
+		r.collectCVEOutcomesFromLatestCSV(ctx, bkt, conv.name, conv.outcomesPrefix)
+	}
+}
+
+func (r *Recoverer) collectCVEOutcomesFromLatestCSV(ctx context.Context, bkt clients.CloudStorage, converter, outcomesPrefix string) {
+	var latestCSV string
+	for obj, err := range bkt.Objects(ctx, outcomesPrefix+"/") {
+		if err != nil {
+			logger.WarnContext(ctx, "metrics_collector: failed to list outcomes directory",
+				slog.String("converter", converter), slog.Any("error", err))
+			return
+		}
+		if obj != nil && strings.HasSuffix(obj.Name, ".csv") && obj.Name > latestCSV {
+			latestCSV = obj.Name
+		}
+	}
+	if latestCSV == "" {
+		return
+	}
+
+	csvBytes, err := bkt.ReadObject(ctx, latestCSV)
+	if err != nil {
+		if !errors.Is(err, clients.ErrNotFound) {
+			logger.WarnContext(ctx, "metrics_collector: failed to read outcomes CSV",
+				slog.String("object", latestCSV), slog.Any("error", err))
+		}
+
+		return
+	}
+
+	reader := csv.NewReader(bytes.NewReader(csvBytes))
+	records, err := reader.ReadAll()
+	if err != nil || len(records) <= 1 {
+		return
+	}
+
+	counts := make(map[string]int)
+	for _, row := range records[1:] {
+		if len(row) >= 2 && row[1] != "" {
+			counts[row[1]]++
+		}
+	}
+	for outcome, cnt := range counts {
+		metrics.CVEConversionOutcomesTotal.WithLabelValues(converter, outcome).Set(float64(cnt))
 	}
 }
