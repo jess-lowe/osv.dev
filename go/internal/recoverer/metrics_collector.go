@@ -250,8 +250,8 @@ func (r *Recoverer) collectDatasetAndExportMetrics(ctx context.Context) {
 				continue
 			}
 			vulnID := pathOrID
-			if idx := strings.LastIndex(pathOrID, "/"); idx >= 0 {
-				vulnID = pathOrID[idx+1:]
+			if _, after, ok := strings.CutLast(pathOrID, "/"); ok {
+				vulnID = after
 			}
 			if vulnID != "" {
 				uniqueIDs[vulnID] = struct{}{}
@@ -342,6 +342,7 @@ func (r *Recoverer) collectCVEConversionMetrics(ctx context.Context, discoveredB
 			if unmarshalErr := json.Unmarshal(data, &summary); unmarshalErr != nil {
 				logger.WarnContext(ctx, "metrics_collector: failed to unmarshal conversion-summary.json",
 					slog.String("converter", conv.name), slog.Any("error", unmarshalErr))
+
 				continue
 			}
 
@@ -373,6 +374,7 @@ func (r *Recoverer) collectCVEConversionMetrics(ctx context.Context, discoveredB
 		if !errors.Is(err, clients.ErrNotFound) {
 			logger.WarnContext(ctx, "metrics_collector: failed to read conversion-summary.json",
 				slog.String("converter", conv.name), slog.Any("error", err))
+
 			continue
 		}
 
@@ -387,6 +389,7 @@ func (r *Recoverer) collectCVEOutcomesFromLatestCSV(ctx context.Context, bkt cli
 		if err != nil {
 			logger.WarnContext(ctx, "metrics_collector: failed to list outcomes directory",
 				slog.String("converter", converter), slog.Any("error", err))
+
 			return
 		}
 		if obj != nil && strings.HasSuffix(obj.Name, ".csv") && obj.Name > latestCSV {

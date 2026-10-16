@@ -774,6 +774,7 @@ func TestHandleGeneric(t *testing.T) {
 
 type mockSourceRepoStore struct {
 	models.SourceRepositoryStore
+
 	repos []*models.SourceRepository
 }
 
@@ -816,6 +817,7 @@ func (m *mockJobDataStore) Set(_ context.Context, key string, val any) error {
 
 type mockImportFindingsStore struct {
 	models.ImportFindingsStore
+
 	findings []*models.ImportFinding
 }
 
@@ -910,19 +912,19 @@ func TestCollectMetrics(t *testing.T) {
 	wantMetrics := []string{
 		`osv_recordchecker_drift{type="gcs_missing_or_stale"} 2`,
 		`osv_recordchecker_invalid_records{source="ghsa"} 2`,
-		`osv_reconciler_records_reconciled_total{status="missing"} 5`,
-		`osv_deleter_refused_deletions_total{source="ghsa"} 42`,
-		`osv_data_quality_findings_total{rule_code="RNG:001",severity="error",source="ghsa"} 1`,
+		`osv_reconciler_records_reconciled{status="missing"} 5`,
+		`osv_deleter_refused_deletions{source="ghsa"} 42`,
+		`osv_data_quality_findings{rule_code="RNG:001",severity="error",source="ghsa"} 1`,
 		`osv_dataset_total_vulnerabilities{ecosystem="all"} 2`,
 		`osv_dataset_total_vulnerabilities{ecosystem="PyPI"} 2`,
 		`osv_export_zip_size_bytes{ecosystem="all"} 15`,
-		`osv_cve_conversion_outcomes_total{converter="cve5",outcome="Successful"} 120`,
-		`osv_cve_conversion_outcomes_total{converter="nvd",outcome="Successful"} 2`,
-		`osv_cve_conversion_outcomes_total{converter="nvd",outcome="NoCommitRanges"} 1`,
-		`osv_cve_range_sources_total{converter="cve5",source="AFFECTED_FIELD"} 95`,
-		`osv_cve_reference_types_total{converter="cve5",ref_type="FIX"} 110`,
-		`osv_cve_resolved_ranges_total{converter="cve5",status="resolved"} 140`,
-		`osv_cve_cna_outcomes_total{cna="github_m",outcome="Successful"} 90`,
+		`osv_cve_conversion_outcomes{converter="cve5",outcome="Successful"} 120`,
+		`osv_cve_conversion_outcomes{converter="nvd",outcome="Successful"} 2`,
+		`osv_cve_conversion_outcomes{converter="nvd",outcome="NoCommitRanges"} 1`,
+		`osv_cve_range_sources{converter="cve5",source="AFFECTED_FIELD"} 95`,
+		`osv_cve_reference_types{converter="cve5",ref_type="FIX"} 110`,
+		`osv_cve_resolved_ranges{converter="cve5",status="resolved"} 140`,
+		`osv_cve_cna_outcomes{cna="github_m",outcome="Successful"} 90`,
 	}
 	for _, want := range wantMetrics {
 		if !strings.Contains(metricsText, want) {
