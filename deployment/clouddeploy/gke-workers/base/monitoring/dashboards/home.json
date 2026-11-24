@@ -29,7 +29,7 @@
       },
       "id": 1,
       "options": {
-        "content": "## Welcome to OSV.dev Observability\n\nChoose the dashboard below that best matches what you are investigating:\n\n| Dashboard | Best For / Questions Answered | Key Signals |\n| :--- | :--- | :--- |\n| **[1. Executive Overview & SLAs](/d/osv-exec-overview)** | **Overall health & SLO status** — *Are the Website & API meeting 99.9% availability (7d) and per-endpoint P50/P90/P95 latency SLOs? Are advisories ingested within our 2-hour pipeline target?* | Website & API 99.9% availability (7d) & P50/P90/P95 latency SLOs (`GET /v1/vulns/{id}`, `POST /v1/query`, `POST /v1/querybatch`), worker success rate, importer-to-available pipeline latency |\n| **[2. Ingestion & Worker Pipeline Operations](/d/osv-pipeline-ingestion-ops)** | **On-call pipeline triage** — *Is Pub/Sub backed up? Are worker pools scaling and draining fast enough? Which tasks recently failed?* | Queue depth (`default` / `reimport` / `cves`), intake vs. drain rate, error log triage links, reconciler & deleter safety limits |\n| **[3. Vulnerability Data Quality & Ecosystem Health](/d/osv-data-quality-drift)** | **Dataset integrity & feed freshness** — *Are Datastore and GCS out of sync? Which upstream feeds are stale or triggering linter errors?* | `recordchecker` drift, `osv-linter` findings by source/rule, feed staleness, `all.zip` export sizes, Gitter commit scan & error rate |\n| **4. CVE & Feed Conversions *(Planned)*** | **`vulnfeeds/` & CNA conversion quality** — *Why are CVEs failing to convert? How are CVEListV5, NVD, Debian, and Alpine converters running?* | Conversion funnel & outcomes, range extraction sources, Assigner CNA scorecards, `vulnfeeds/` CronJob status |\n\n---\n**Planned Deep-Dive Dashboards (Upcoming):** *5. API Serving & Analytics* · *6. Gitter & Recoverer Deep-Dive* · *7. CronJobs & Storage Capacity*\n\n*Tip: Click the **Plutono** icon, **Home**, or **Observability Directory** in the top navigation from any dashboard to return to this directory.*",
+        "content": "## Welcome to OSV.dev Observability\n\nChoose the dashboard below that best matches what you are investigating:\n\n| Dashboard | Best For / Questions Answered | Key Signals |\n| :--- | :--- | :--- |\n| **[1. Executive Overview & SLAs](/d/osv-exec-overview?var-gmp_datasource=${gmp_datasource:percentencode})** | **Overall health & SLO status** — *Are the Website & API meeting 99.9% availability (7d) and per-endpoint P50/P90/P95 latency SLOs? Are advisories ingested within our 2-hour pipeline target?* | Website & API 99.9% availability (7d) & P50/P90/P95 latency SLOs (`GET /v1/vulns/{id}`, `POST /v1/query`, `POST /v1/querybatch`), worker success rate, importer-to-available pipeline latency |\n| **[2. Ingestion & Worker Pipeline Operations](/d/osv-pipeline-ingestion-ops?var-gmp_datasource=${gmp_datasource:percentencode})** | **On-call pipeline triage** — *Is Pub/Sub backed up? Are worker pools scaling and draining fast enough? Which tasks recently failed?* | Queue depth (`default` / `reimport` / `cves`), intake vs. drain rate, error log triage links, reconciler & deleter safety limits |\n| **[3. Vulnerability Data Quality & Ecosystem Health](/d/osv-data-quality-drift?var-gmp_datasource=${gmp_datasource:percentencode})** | **Dataset integrity & feed freshness** — *Are Datastore and GCS out of sync? Which upstream feeds are stale or triggering linter errors?* | `recordchecker` drift, `osv-linter` findings by source/rule, feed staleness, `all.zip` export sizes, Gitter commit scan & error rate |\n| **4. CVE & Feed Conversions *(Planned)*** | **`vulnfeeds/` & CNA conversion quality** — *Why are CVEs failing to convert? How are CVEListV5, NVD, Debian, and Alpine converters running?* | Conversion funnel & outcomes, range extraction sources, Assigner CNA scorecards, `vulnfeeds/` CronJob status |\n\n---\n**Planned Deep-Dive Dashboards (Upcoming):** *5. API Serving & Analytics* · *6. Gitter & Recoverer Deep-Dive* · *7. CronJobs & Storage Capacity*\n\n*Tip: Click the **Plutono** icon, **Home**, or **Observability Directory** in the top navigation from any dashboard to return to this directory.*",
         "mode": "markdown"
       },
       "pluginVersion": "7.5.52",
@@ -47,7 +47,7 @@
       },
       "id": 2,
       "options": {
-        "includeVars": false,
+        "includeVars": true,
         "keepTime": false,
         "maxItems": 20,
         "query": "",
@@ -77,7 +77,7 @@
       "type": "row"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -107,7 +107,7 @@
             {
               "targetBlank": false,
               "title": "Open 1. Executive Overview & SLAs",
-              "url": "/d/osv-exec-overview"
+              "url": "/d/osv-exec-overview?var-gmp_datasource=${gmp_datasource:percentencode}"
             }
           ]
         },
@@ -147,7 +147,7 @@
       "description": "7-day rolling Cloud Run availability for osv-grpc-v1 (SLO: 99.9%). Click to open Dashboard 1."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -176,7 +176,7 @@
             {
               "targetBlank": false,
               "title": "Open 2. Ingestion & Worker Pipeline Operations",
-              "url": "/d/osv-pipeline-ingestion-ops"
+              "url": "/d/osv-pipeline-ingestion-ops?var-gmp_datasource=${gmp_datasource:percentencode}"
             }
           ]
         },
@@ -215,7 +215,7 @@
       "description": "Undelivered Pub/Sub messages waiting in the primary worker subscription. Click to open Dashboard 2 (Ingestion & Worker Pipeline Operations)."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -244,7 +244,7 @@
             {
               "targetBlank": false,
               "title": "Open 3. Vulnerability Data Quality & Ecosystem Health",
-              "url": "/d/osv-data-quality-drift"
+              "url": "/d/osv-data-quality-drift?var-gmp_datasource=${gmp_datasource:percentencode}"
             }
           ]
         },
@@ -283,7 +283,7 @@
       "description": "Missing or stale GCS vulnerability blobs relative to Datastore detected by recordchecker. Click to open Dashboard 3 (Data Quality & Ecosystem Health)."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -360,7 +360,26 @@
     "home"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "gmp_datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",

@@ -9,7 +9,7 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: GMP (Prometheus)
+      - name: GMP (Test)
         uid: gmp
         type: prometheus
         access: proxy

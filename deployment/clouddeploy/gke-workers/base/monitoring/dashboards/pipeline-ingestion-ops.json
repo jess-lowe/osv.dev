@@ -24,12 +24,12 @@
       "title": "Observability Directory",
       "tooltip": "Return to OSV.dev Observability Directory",
       "type": "link",
-      "url": "/d/osv-home"
+      "url": "/d/osv-home?var-gmp_datasource=${gmp_datasource:percentencode}"
     },
     {
       "asDropdown": true,
       "icon": "external link",
-      "includeVars": false,
+      "includeVars": true,
       "keepTime": true,
       "tags": [
         "osv"
@@ -54,7 +54,7 @@
       "type": "row"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -115,7 +115,7 @@
       "type": "stat"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -176,7 +176,7 @@
       "type": "stat"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -239,7 +239,7 @@
       "description": "Current age of the single oldest unacknowledged message across Pub/Sub subscriptions (labeled with its subscription_id). Drops immediately once the message is acknowledged or expires."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -309,7 +309,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -420,7 +420,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -546,7 +546,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -679,7 +679,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -799,7 +799,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -913,7 +913,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -1020,7 +1020,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -1145,7 +1145,7 @@
       },
       "id": 12,
       "options": {
-        "content": "### Cloud Logging Triage Links (`severity >= ERROR`)\nInline Cloud Logging panels require Grafana >= 8.5 (`googlecloud-logging-datasource`); use the pre-filtered Google Cloud Logs Explorer links below for live stack traces and `ref_id` inspection:\n\n- [**All Pipeline Error Logs** (`worker-*`, `recoverer`, `importer*`, `gitter`, `record-checker`, `exporter`)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%7Crecoverer%7Cimporter%7Cimporter-deleter%7Cgitter%7Crecord-checker%7Cexporter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- [**Worker Pool Errors Only** (`worker-private`, `workers-reimport`, `workers-cves`)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- [**Importer & Deleter Errors** (`importer`, `importer-deleter`)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28importer%7Cimporter-deleter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- [**Recoverer Errors** (`recoverer`)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28recoverer%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n\n```text\nresource.type=\"k8s_container\"\nresource.labels.container_name=~\"^(worker-private|workers-reimport|workers-cves|recoverer|importer|importer-deleter|gitter|record-checker|exporter)$\"\nseverity>=ERROR\n```",
+        "content": "### Cloud Logging Triage Links (`severity >= ERROR`)\nInline Cloud Logging panels require Grafana >= 8.5 (`googlecloud-logging-datasource`); use the pre-filtered Google Cloud Logs Explorer links below for live stack traces and `ref_id` inspection:\n\n- **All Pipeline Error Logs** (`worker-*`, `recoverer`, `importer*`, `gitter`, `record-checker`, `exporter`): [Prod (oss-vdb)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%7Crecoverer%7Cimporter%7Cimporter-deleter%7Cgitter%7Crecord-checker%7Cexporter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb) · [Staging (oss-vdb-test)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%7Crecoverer%7Cimporter%7Cimporter-deleter%7Cgitter%7Crecord-checker%7Cexporter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- **Worker Pool Errors Only** (`worker-private`, `workers-reimport`, `workers-cves`): [Prod (oss-vdb)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb) · [Staging (oss-vdb-test)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28worker-private%7Cworkers-reimport%7Cworkers-cves%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- **Importer & Deleter Errors** (`importer`, `importer-deleter`): [Prod (oss-vdb)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28importer%7Cimporter-deleter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb) · [Staging (oss-vdb-test)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28importer%7Cimporter-deleter%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n- **Recoverer Errors** (`recoverer`): [Prod (oss-vdb)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28recoverer%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb) · [Staging (oss-vdb-test)](https://console.cloud.google.com/logs/query;query=resource.type%3D%22k8s_container%22%0Aresource.labels.container_name%3D~%22%5E%28recoverer%29%24%22%0Aseverity%3E%3DERROR?project=oss-vdb-test)\n\n```text\nresource.type=\"k8s_container\"\nresource.labels.container_name=~\"^(worker-private|workers-reimport|workers-cves|recoverer|importer|importer-deleter|gitter|record-checker|exporter)$\"\nseverity>=ERROR\n```",
         "mode": "markdown"
       },
       "pluginVersion": "7.5.52",
@@ -1164,7 +1164,26 @@
     "mvp"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "gmp_datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "now-24h",

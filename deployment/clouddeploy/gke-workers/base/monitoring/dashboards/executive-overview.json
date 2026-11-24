@@ -24,12 +24,12 @@
       "title": "Observability Directory",
       "tooltip": "Return to OSV.dev Observability Directory",
       "type": "link",
-      "url": "/d/osv-home"
+      "url": "/d/osv-home?var-gmp_datasource=${gmp_datasource:percentencode}"
     },
     {
       "asDropdown": true,
       "icon": "external link",
-      "includeVars": false,
+      "includeVars": true,
       "keepTime": true,
       "tags": [
         "osv"
@@ -54,7 +54,7 @@
       "type": "row"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -120,7 +120,7 @@
       "description": "7-day rolling Cloud Run availability for ESPv2 gateway osv-grpc-v1 (SLO: 99.9%)."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -186,7 +186,7 @@
       "description": "7-day rolling Cloud Load Balancer availability for website URL map (SLO: 99.9%)."
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -251,7 +251,7 @@
       "type": "stat"
     },
     {
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -328,7 +328,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -426,7 +426,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -520,7 +520,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -648,7 +648,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -776,7 +776,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -904,7 +904,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1046,7 +1046,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 2,
       "fillGradient": 0,
       "gridPos": {
@@ -1141,7 +1141,7 @@
       "bars": true,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 8,
       "fillGradient": 0,
       "gridPos": {
@@ -1245,7 +1245,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "GMP (Prometheus)",
+      "datasource": "$gmp_datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1354,6 +1354,24 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "gmp_datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
         "allValue": ".*",
         "current": {
           "selected": true,
@@ -1364,7 +1382,7 @@
             "$__all"
           ]
         },
-        "datasource": "GMP (Prometheus)",
+        "datasource": "$gmp_datasource",
         "definition": "label_values(osv_importer_last_new_record_timestamp_seconds, source)",
         "hide": 0,
         "includeAll": true,

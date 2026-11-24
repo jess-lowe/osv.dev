@@ -64,7 +64,7 @@ flowchart LR
   the `Viewer` role. The login form and anonymous access are disabled.
 - **Provisioning**:
   - [`configmaps/grafana_datasources.yaml`](configmaps/grafana_datasources.yaml) defines
-    `GMP (Prometheus)` (uid `gmp`, default) and `Cloud Monitoring` (uid `cloud-monitoring`) for
+    `GMP (Test)` (uid `gmp`, default) and `Cloud Monitoring` (uid `cloud-monitoring`) for
     `oss-vdb-test`. The production overlay in
     [`environments/oss-vdb/monitoring/grafana_datasources.yaml`](../../environments/oss-vdb/monitoring/grafana_datasources.yaml)
     provides `GMP (Prod)` (uid `gmp-prod`, default), `GMP (Test)` (uid `gmp-test`), and
@@ -128,8 +128,12 @@ flowchart LR
    re-reads the files every 10s, so you can reload to verify the result.
 3. Follow these rules:
    - **Keep `uid` stable.** `home.json` links to the other dashboards by `/d/<uid>`.
-   - Reference the datasource as `GMP (Prometheus)`, which is how the existing panels refer to it.
-   - Don't commit local-only changes such as `editable` or an `id`.
+   - Reference the Prometheus datasource as `$gmp_datasource` (backed by the `Environment`
+     datasource template variable, which defaults to `"default"`), so dashboards work across
+     staging, production, and local setups.
+   - Don't commit local-only changes such as `editable` or an `id`, or resolved `gmp_datasource`
+     `current`/`options` state exported from local Plutono (keep `current` set to `"default"` with
+     `selected: false` and `options: []`).
 4. **To add a new dashboard file**, also add it to the `configMapGenerator` list in
    [`kustomization.yaml`](kustomization.yaml). Otherwise, it won't be deployed. The home page's
    dashboard list updates automatically, but the "Where Should I Start?" table in `home.json`
